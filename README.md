@@ -22,6 +22,13 @@
 
 ---
 
+## 截图
+![输入图片说明](libs/1.jpg)
+![输入图片说明](libs/2.jpg)
+![输入图片说明](libs/3.jpg)
+
+---
+
 ## 📦 安装和使用  
 ### 环境要求  
  
@@ -38,7 +45,3 @@ git clone https://gitee.com/mapbs/mbs-cesium-example.git
 ---
 
 
-## 截图
-![输入图片说明](libs/1.jpg)
-![输入图片说明](libs/2.jpg)
-![输入图片说明](libs/3.jpg)
