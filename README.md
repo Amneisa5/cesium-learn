@@ -42,6 +42,3 @@ git clone https://gitee.com/mapbs/mbs-cesium-example.git
 使用vscode++ 打开项目
 使用live server打开一个动态地址直接访问根目录下的index.html
 
----
-
-
