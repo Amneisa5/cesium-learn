@@ -17,20 +17,23 @@
   let viewer = mbs.utils.initMap("map");
   addHeatmap(viewer);
   //定位
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(116, 33, 100000),
-    orientation: {
-      heading: 5.426926684703881,
-      pitch: -0.2791305753706699,
-      roll: 6.282719687781836,
-    },
-  });
+  // viewer.camera.setView({
+  //   destination: Cesium.Cartesian3.fromDegrees(116, 33, 100000),
+  //   orientation: {
+  //     heading: 5.426926684703881,
+  //     pitch: -0.2791305753706699,
+  //     roll: 6.282719687781836,
+  //   },
+  // });
+  let position = Cesium.Cartesian3.fromDegrees(114, 34.5, 100000);
+  let boxHeight = 100000;
+  viewer.camera.lookAt(position, new Cesium.HeadingPitchRange(0, 0, boxHeight));
 })();
 
-function addHeatmap(viewer) {
+function addHeatmap (viewer) {
   let panelParam = {
     bounds: [113, 34, 115, 35],
-    groundHeight: 10000,
+    groundHeight: 100000,
     currHeight: 100,
     densityX: 100,
     densityY: 50,
@@ -71,11 +74,11 @@ function addHeatmap(viewer) {
     curveType: 0,
   });
 
-      
+
 }
 
-function resizeWindow() {
-  function setDivHeight() {
+function resizeWindow () {
+  function setDivHeight () {
     var div = document.getElementById('map');
     div.style.height = window.innerHeight + 'px';
   }

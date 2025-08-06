@@ -26,7 +26,7 @@ const initMap = function (domId) {
     selectionIndicator: false, // 选择
     shadows: true, //光照的阴影效果
     contextOptions: {
-      //requestWebgl1: true,
+      // requestWebgl1: true,
       requestWebgl2: true,
     },
   });
@@ -106,19 +106,19 @@ const flyCenter = function (attr) {
 }
 
 const mbs = {
-  utils:{
-    initMap:initMap,
-    toLonLat:toLonLat,
-    formLonLat:formLonLat,
-    updateMatrix:updateMatrix,
-    flyCenter:flyCenter
+  utils: {
+    initMap: initMap,
+    toLonLat: toLonLat,
+    formLonLat: formLonLat,
+    updateMatrix: updateMatrix,
+    flyCenter: flyCenter
   }
 }
 
 var module = {
-	exports: {}
+  exports: {}
 };
 
 if (module && module.exports) {
-	module.exports = mbs.utils;
+  module.exports = mbs.utils;
 }

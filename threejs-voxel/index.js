@@ -29,7 +29,7 @@
   setThreejsVolumn(viewer);
 })();
 
-function setThreejsVolumn(viewer){
+function setThreejsVolumn (viewer) {
   const fragmentShaderSource = `
 precision highp float;
 precision highp sampler3D;
@@ -110,7 +110,7 @@ void main()
     if(color.a==0.) discard;
 }
 `;
-      const fragmentShaderSource2 = `
+  const fragmentShaderSource2 = `
 precision highp float;
 precision highp sampler3D;
 
@@ -208,139 +208,147 @@ void main(){
 }
 `;
 
-this.cloudParams= {
-  threshold: 0.25,
-  opacity: 0.25,
-  range: 0.1,
-  steps: 200,
-  frame: 0,
-  x: 1,
-  y: 1,
-  z: 1,
-};
-this.perlinParams={
-  threshold: 0.6,
-  steps: 200,
-};
-// 创建dat.GUI实例
-var gui = new dat.GUI();
+  this.cloudParams = {
+    threshold: 0.25,
+    opacity: 0.25,
+    range: 0.1,
+    steps: 200,
+    frame: 0,
+    x: 1,
+    y: 1,
+    z: 1,
+  };
+  this.perlinParams = {
+    threshold: 0.6,
+    steps: 200,
 
-let f = gui.addFolder('cloud设置');
-f.add(this.cloudParams,'threshold',0,1);
-f.add(this.cloudParams,'opacity',0,1);
-f.add(this.cloudParams,'range',0,1);
-f.add(this.cloudParams,'steps',0,300);
-f.open();
+  };
+  // 创建dat.GUI实例
+  var gui = new dat.GUI();
 
-let f1 = gui.addFolder('perlin设置');
-f1.add(this.perlinParams,'threshold',0,1);
-f1.add(this.perlinParams,'steps',0,300);
-f1.open();
-      const dim_lxs = new Cesium.Cartesian3(this.cloudParams.x, this.cloudParams.y, this.cloudParams.z);
-      var geometry = Cesium.BoxGeometry.fromDimensions({
-        vertexFormat: Cesium.VertexFormat.POSITION_AND_ST,
-        dimensions: dim_lxs,
-      });
-      let params = {
-        scaleX: 10000,
-        scaleY: 10000,
-        scaleZ: 10000,
-        tx: 110,
-        ty: 40,
-        tz: 4000,
-        // scaleX: Cesium.Ellipsoid.WGS84.maximumRadius*2,
-        // scaleY: Cesium.Ellipsoid.WGS84.maximumRadius*2,
-        // scaleZ: Cesium.Ellipsoid.WGS84.maximumRadius*2,
-        // tx: -Cesium.Ellipsoid.WGS84.maximumRadius,
-        // ty: -Cesium.Ellipsoid.WGS84.maximumRadius,
-        // tz: -Cesium.Ellipsoid.WGS84.maximumRadius,
-        rx: 0, //X轴（经度）方向旋转角度（单位：度）
-        ry: 0, //Y轴（纬度）方向旋转角度（单位：度）
-        rz: 0, //Z轴（高程）方向旋转角度（单位：度）
-      };
-      const primitive_modelMatrix = mbs.utils.updateMatrix(params);
+  let f = gui.addFolder('cloud设置');
+  f.add(this.cloudParams, 'threshold', 0, 1);
+  f.add(this.cloudParams, 'opacity', 0, 1);
+  f.add(this.cloudParams, 'range', 0, 1);
+  f.add(this.cloudParams, 'steps', 0, 300);
+  f.open();
 
-      let params1 = {
-        scaleX: 10000,
-        scaleY: 10000,
-        scaleZ: 10000,
-        tx: 109.8,
-        ty: 40,
-        tz: 8000,
-        rx: 0, //X轴（经度）方向旋转角度（单位：度）
-        ry: 0, //Y轴（纬度）方向旋转角度（单位：度）
-        rz: 0, //Z轴（高程）方向旋转角度（单位：度）
-      };
-      const primitive_modelMatrix1 = mbs.utils.updateMatrix(params1);
-      /**
-       * 生成体数据
-       */
-      const size = 128;
-      //data在0~255之间
-      const data = new Uint8Array(size * size * size);
-      const data1 = new Uint8Array(size * size * size);
-      let dx, dy, dz;
-      let dx1, dy1, dz1;
-      let i = 0;
-      let i1 = 0;
-      //const perlin = new ImprovedNoise();
-      const perlin = new ImprovedNoise();
-      for (let z = 0; z < size; z++) {
-        for (let y = 0; y < size; y++) {
-          for (let x = 0; x < size; x++) {
-            //-------------------------------------------------------------------
-            dx1 = (x * 1.0) / size;
-            dy1 = (y * 1.0) / size;
-            dz1 = (z * 1.0) / size;
-            const d1 = perlin.noise(dx1 * 6.5, dy1 * 6.5, dz1 * 6.5);
-            data1[i1++] = d1 * 128 + 128;
-            //-------------------------------------------------------------------
-            dx = (x - size / 2) / size;
-            dy = (y - size / 2) / size;
-            dz = (z - size / 2) / size;
-            var temp = Cesium.Cartesian3.distance(
-              new Cesium.Cartesian3(0, 0, 0),
-              new Cesium.Cartesian3(dx, dy, dz)
-            );
-            const d = 1.0 - temp;
-            data[i++] =
-              (128 + 128 * perlin.noise((x * 0.05) / 1.5, y * 0.05, (z * 0.05) / 1.5)) *
-              d *
-              d;
-            //-------------------------------------------------------------------
-          }
-        }
+  let f1 = gui.addFolder('perlin设置');
+  f1.add(this.perlinParams, 'threshold', 0, 1);
+  f1.add(this.perlinParams, 'steps', 0, 300);
+  // f1.add(this.perlinParams, 'tz', 0, 8000)
+  f1.open();
+  const dim_lxs = new Cesium.Cartesian3(this.cloudParams.x, this.cloudParams.y, this.cloudParams.z);
+  var geometry = Cesium.BoxGeometry.fromDimensions({
+    vertexFormat: Cesium.VertexFormat.POSITION_AND_ST,
+    dimensions: dim_lxs,
+  });
+  let params = {
+    scaleX: 10000,
+    scaleY: 10000,
+    scaleZ: 10000,
+    tx: 110,
+    ty: 40,
+    tz: 4000,
+    // scaleX: Cesium.Ellipsoid.WGS84.maximumRadius*2,
+    // scaleY: Cesium.Ellipsoid.WGS84.maximumRadius*2,
+    // scaleZ: Cesium.Ellipsoid.WGS84.maximumRadius*2,
+    // tx: -Cesium.Ellipsoid.WGS84.maximumRadius,
+    // ty: -Cesium.Ellipsoid.WGS84.maximumRadius,
+    // tz: -Cesium.Ellipsoid.WGS84.maximumRadius,
+    rx: 0, //X轴（经度）方向旋转角度（单位：度）
+    ry: 0, //Y轴（纬度）方向旋转角度（单位：度）
+    rz: 0, //Z轴（高程）方向旋转角度（单位：度）
+  };
+  const primitive_modelMatrix = mbs.utils.updateMatrix(params);
+
+  let params1 = {
+    // scaleX: Cesium.Ellipsoid.WGS84.maximumRadius*2,
+    // scaleY: Cesium.Ellipsoid.WGS84.maximumRadius*2,
+    // scaleZ: Cesium.Ellipsoid.WGS84.maximumRadius*2,
+    // tx: -Cesium.Ellipsoid.WGS84.maximumRadius,
+    // ty: -Cesium.Ellipsoid.WGS84.maximumRadius,
+    // tz: -Cesium.Ellipsoid.WGS84.maximumRadius,
+    scaleX: 10000,
+    scaleY: 10000,
+    scaleZ: 10000,
+    tx: 109.8,
+    ty: 40,
+    tz: 8000,
+    rx: 0, //X轴（经度）方向旋转角度（单位：度）
+    ry: 0, //Y轴（纬度）方向旋转角度（单位：度）
+    rz: 0, //Z轴（高程）方向旋转角度（单位：度）
+  };
+  const primitive_modelMatrix1 = mbs.utils.updateMatrix(params1);
+  /**
+   * 生成体数据
+   */
+  const size = 128;
+  //data在0~255之间
+  const data = new Uint8Array(size * size * size);
+  const data1 = new Uint8Array(size * size * size);
+  let dx, dy, dz;
+  let dx1, dy1, dz1;
+  let i = 0;
+  let i1 = 0;
+  //const perlin = new ImprovedNoise();
+  const perlin = new ImprovedNoise();
+  for (let z = 0; z < size; z++) {
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        //-------------------------------------------------------------------
+        dx1 = (x * 1.0) / size;
+        dy1 = (y * 1.0) / size;
+        dz1 = (z * 1.0) / size;
+        const d1 = perlin.noise(dx1 * 6.5, dy1 * 6.5, dz1 * 6.5);
+        data1[i1++] = d1 * 128 + 128;
+        //-------------------------------------------------------------------
+        dx = (x - size / 2) / size;
+        dy = (y - size / 2) / size;
+        dz = (z - size / 2) / size;
+        var temp = Cesium.Cartesian3.distance(
+          new Cesium.Cartesian3(0, 0, 0),
+          new Cesium.Cartesian3(dx, dy, dz)
+        );
+        const d = 1.0 - temp;
+        data[i++] =
+          (128 + 128 * perlin.noise((x * 0.05) / 1.5, y * 0.05, (z * 0.05) / 1.5)) *
+          d *
+          d;
+        //-------------------------------------------------------------------
       }
+    }
+  }
 
-      //console.log(data);
+  //console.log(data);
 
-      const options = {
-        modelMatrix: primitive_modelMatrix,
-        geometry_lxs: geometry,
-        data: data,
-        dim: dim_lxs,
-        size: size,
-        params: this.cloudParams,
-        fragmentShaderSource: fragmentShaderSource2,
-      };
+  const options = {
+    modelMatrix: primitive_modelMatrix,
+    geometry_lxs: geometry,
+    data: data,
+    dim: dim_lxs,
+    size: size,
+    params: this.cloudParams,
+    fragmentShaderSource: fragmentShaderSource2,
+  };
 
-      viewer.scene.primitives.add(new VoxelPrimitive(options));
+  // viewer.scene.primitives.add(new VoxelPrimitive(options));
 
-      const options1 = {
-        modelMatrix: primitive_modelMatrix1,
-        geometry_lxs: geometry,
-        data: data1,
-        dim: dim_lxs,
-        size: size,
-        params: this.perlinParams,
-        fragmentShaderSource: fragmentShaderSource,
-      };
+  const options1 = {
+    modelMatrix: primitive_modelMatrix1,
+    geometry_lxs: geometry,
+    data: data1,
+    dim: dim_lxs,
+    size: size,
+    params: this.perlinParams,
+    fragmentShaderSource: fragmentShaderSource,
+  };
 
-      viewer.scene.primitives.add(new VoxelPrimitive(options1));
+  viewer.scene.primitives.add(new VoxelPrimitive(options1));
 }
 
-function resizeWindow() {
-  function setDivHeight() {
+function resizeWindow () {
+  function setDivHeight () {
     var div = document.getElementById('map');
     div.style.height = window.innerHeight + 'px';
   }

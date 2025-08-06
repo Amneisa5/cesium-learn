@@ -22,7 +22,7 @@ class heatmap3d {
 * B站地址：https://space.bilibili.com/43506538
 * gitee地址：https://gitee.com/mapbs
 * github地址：https://github.com/mapbs`
-               )
+        )
     }
     /**
      * 创建热力图曲面几何
@@ -35,7 +35,7 @@ class heatmap3d {
      * @param {?Object} param.data - 数据对象
      * @param {?Object} param.colors - 设置颜色区间
      */
-    heatmapSurface(param) {
+    heatmapSurface (param) {
         /**
          * @ignore
          */
@@ -115,6 +115,7 @@ class heatmap3d {
          * @param {?num} param.data - 基础数据
          */
         else {
+            // 将经纬度转换为在热力图贴图中的坐标
             let currData = [];
             for (let i = 0; i < param.data.length; i++) {
                 let lon = param.data[i].lon;
@@ -152,21 +153,19 @@ class heatmap3d {
 
         this.generateCurve();
     }
-    removeAll() {
+    removeAll () {
         this.viewer.scene.primitives.remove(this.primitive);
-
         //移除canvas元素
         const elementToRemove = document.getElementById('curved-canvas');
         if (elementToRemove) {
             elementToRemove.parentNode.removeChild(elementToRemove);
         }
-
     }
-    updateHeatmapSurface(param) {
+    updateHeatmapSurface (param) {
         this.removeAll();
         this.heatmapSurface(param);
     }
-    generateCurve() {
+    generateCurve () {
         this.createHeatmap(this.data);
         this.createPrimitive();
     }
@@ -176,12 +175,12 @@ class heatmap3d {
     * @param {!string} ElementId - html的Element节点
     * @return {object} - viewer视口对象
     */
-    createHeatmap(data) {
+    createHeatmap (data) {
         let _this = this;
         var domElement = document.createElement("div");
         domElement.setAttribute(
             "style",
-            "width: " + this.width + "px; height: " + this.height + "px; margin: 0px; display: none;"
+            "width: " + this.width + "px; height: " + this.height + "px; margin: 0px; display: block;"
         );
         domElement.setAttribute(
             "id",
@@ -210,7 +209,7 @@ class heatmap3d {
     * @param {!string} ElementId - html的Element节点
     * @return {object} - viewer视口对象
     */
-    createPrimitive() {
+    createPrimitive () {
         let viewer = this.viewer;
 
         let _this = this;
@@ -229,7 +228,7 @@ class heatmap3d {
 
         this.primitive = viewer.scene.primitives.add(new Cesium.Primitive(opt));
     }
-    generateGeometryInstance() {
+    generateGeometryInstance () {
         //let bounds = this.currBounds.split(",").map(Number);
         let bounds = this.bounds;
         const dWidth = bounds[2] - bounds[0],
@@ -243,6 +242,7 @@ class heatmap3d {
             h = 0,
             dh = this.currHeight; // 这里配置了插入间隔和起始高度、高度间隔
 
+        // 计算网格的行数和列数
         let r = Math.floor(dWidth / dx),
             l = Math.floor(dHeight / dy);
 
@@ -256,9 +256,10 @@ class heatmap3d {
                     x: Math.round(((x - left) / dWidth) * this.width),
                     y: this.height - Math.round(((y - bottom) / dHeight) * this.height),
                 };
-
+                // 获取热力图上的颜色值
                 let v = this.heatmap.getValueAt(screen);
                 let color = this.heatmap._renderer.ctx.getImageData(screen.x, screen.y, 1, 1).data;
+                // 
                 row.push([
                     x,
                     y,
@@ -290,6 +291,7 @@ class heatmap3d {
                     this.addVertices(p2, wgs84Positions, colors, sts, sheight);
                     this.addVertices(p3, wgs84Positions, colors, sts, sheight);
                     this.addVertices(p4, wgs84Positions, colors, sts, sheight);
+                    // 三角点
                     indices.push(
                         idxCursor + 0,
                         idxCursor + 1,
@@ -312,7 +314,7 @@ class heatmap3d {
         });
     }
     // 把信息写入点，可以在顶点着色器中取到
-    addVertices(p, positions, colors, sts, vheight) {
+    addVertices (p, positions, colors, sts, vheight) {
         //转为cesium坐标
         const c3Position = Cesium.Cartesian3.fromDegrees(p[0], p[1], p[2] + vheight);
         positions.push(c3Position.x, c3Position.y, c3Position.z);
@@ -322,7 +324,7 @@ class heatmap3d {
         sts.push(p[4][0], p[4][1]);
     }
 
-    generateGeometry(positions, colors, indices, sts) {
+    generateGeometry (positions, colors, indices, sts) {
         let attributes = new Cesium.GeometryAttributes({
             position: new Cesium.GeometryAttribute({
                 componentDatatype: Cesium.ComponentDatatype.DOUBLE,
@@ -353,6 +355,7 @@ class heatmap3d {
             primitiveType: Cesium.PrimitiveType.TRIANGLES,
             boundingSphere: boundingSphere,
         });
+
         return geometry;
     }
     //-----------------------------------------------------------------------------------------------------------------------------------------------------------
