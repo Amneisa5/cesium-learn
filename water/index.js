@@ -13,96 +13,16 @@ const viewer = new Cesium.Viewer("map",
     contextOptions: {
       requestWebgl2: true
     },
-    // Explicitly disable terrain by setting it to undefined
     terrain: undefined,
   });
-
+let textureData;
 // 确保地形提供者也被设置为undefined以完全禁用地形
 viewer.scene.terrainProvider = undefined;
 
-// 创建一个立方体几何体而不是矩形
-var boxGeometry = new Cesium.BoxGeometry({
-  vertexFormat: Cesium.VertexFormat.POSITION_AND_NORMAL,
-  maximum: new Cesium.Cartesian3(5000.0, 6000.0, 10000.0), // 半尺寸
-  minimum: new Cesium.Cartesian3(-5000.0, -6000.0, 0.0)
-});
-
-// 创建几何体实例，并设置水体颜色
-var boxInstance = new Cesium.GeometryInstance({
-  geometry: boxGeometry,
-  modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(
-    Cesium.Cartesian3.fromDegrees(118.75, 32.05, 0) // 立方体中心位置
-  ),
-  attributes: {
-    // 修改颜色为水体颜色（蓝色半透明）
-    color: Cesium.ColorGeometryInstanceAttribute.fromColor(new Cesium.Color(0.2, 0.6, 1.0, 0.6))
-  }
-});
-
-// 设置透明和封闭属性
-var boxPrimitive = new Cesium.Primitive({
-  geometryInstances: [boxInstance],
-  appearance: new Cesium.PerInstanceColorAppearance({
-    translucent: true,
-    closed: true
-  })
-});
-
-viewer.scene.primitives.add(boxPrimitive);
-
-// 添加一些浮标效果 - 使用球体几何体创建简单的浮标
-var buoyPositions = [
-  [118.79, 32.03, 0],
-  [118.75, 32.01, 0],
-  [118.74, 32.05, 0],
-  [118.70, 32.09, 0]
-];
-
-var buoyPrimitives = [];
-
-for (var i = 0; i < buoyPositions.length; i++) {
-  var position = buoyPositions[i];
-  var sphereGeometry = new Cesium.SphereGeometry({
-    radius: 200.0,
-    vertexFormat: Cesium.VertexFormat.POSITION_AND_NORMAL
-  });
-  let randomHeight = 5000 + Math.random() * 1000;
-  var sphereInstance = new Cesium.GeometryInstance({
-    geometry: sphereGeometry,
-    modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(
-      Cesium.Cartesian3.fromDegrees(position[0], position[1], position[2] + randomHeight) // 稍微高出水面
-    ),
-    attributes: {
-      color: Cesium.ColorGeometryInstanceAttribute.fromColor(Cesium.Color.RED)
-    }
-  });
-
-  var spherePrimitive = new Cesium.Primitive({
-    geometryInstances: [sphereInstance],
-    appearance: new Cesium.PerInstanceColorAppearance({
-      translucent: false,
-      closed: true
-    })
-  });
-
-  viewer.scene.primitives.add(spherePrimitive);
-  buoyPrimitives.push(spherePrimitive);
-
-  viewer.entities.add({
-    position: Cesium.Cartesian3.fromDegrees(position[0], position[1], position[2] + randomHeight),
-    label: {
-      text: 'Buoy ' + (i + 1),
-      font: '14px sans-serif',
-      fillColor: Cesium.Color.WHITE,
-      outlineColor: Cesium.Color.BLACK,
-      outlineWidth: 2,
-    }
-  })
-}
 
 // 设置相机位置以便观察立方体
 viewer.camera.setView({
-  destination: Cesium.Cartesian3.fromDegrees(118.76, 32.06, 15000),
+  destination: Cesium.Cartesian3.fromDegrees(118.76, 32.06, 13500),
   orientation: {
     heading: Cesium.Math.toRadians(0),
     pitch: Cesium.Math.toRadians(-45),
@@ -113,17 +33,22 @@ viewer.camera.setView({
 // 添加相机.lookAt函数确保相机观察中心对准盒子中心
 var boxCenter = Cesium.Cartesian3.fromDegrees(118.76, 32.06, 0);
 var cameraPosition = Cesium.Cartesian3.fromDegrees(118.76, 32.06, 15000);
-viewer.camera.lookAt(boxCenter, new Cesium.Cartesian3(0.0, -10000.0, 5000.0));
+// viewer.camera.lookAt(boxCenter, new Cesium.Cartesian3(0.0, -10000.0, 5000.0));
 const readGeoTif = async () => {
-  const terrain = "agri-small-dem.tif";
+  const terrain = "gebco_2023_n32.5_s30.0_w120.0_e123.5.tif";
   const rawTiff = await GeoTIFF.fromUrl(terrain);
   const tifImage = await rawTiff.getImage();
-
   const width = tifImage.getWidth();
   const height = tifImage.getHeight();
-
+  console.log(width, height)
+  textureData = new Float32Array(width * height * 4);
   const data = await tifImage.readRasters({ interleave: true });
-
+  for (let i = 0; i < width * height; i++) {
+    textureData[i * 4] = data[i];      // 高度
+    textureData[i * 4 + 1] = 0;
+    textureData[i * 4 + 2] = 0;
+    textureData[i * 4 + 3] = 1;
+  }
   const vertices = [];
   const uvs = [];
   const indices = [];
@@ -131,14 +56,15 @@ const readGeoTif = async () => {
   const heights = []
   const lats = [];
   const lons = [];
-
+  const lonMin = 120, lonMax = 123.5;
+  const latMin = 30, latMax = 32.5;
   // 顶点坐标 + UV
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const index = y * width + x;
-      const lon = 118.7 + (x / width) * 0.1;
-      const lat = 32.0 + (y / height) * 0.1;
-      const h = data[index] - 1500;
+      const lon = lonMin + (x / (width - 1)) * (lonMax - lonMin);
+      const lat = latMin + (y / (height - 1)) * (latMax - latMin);
+      const h = data[index] * 50;
       heights.push(h);
       // 经纬度转世界笛卡尔坐标
       const cartesian = Cesium.Cartesian3.fromDegrees(lon, lat, h);
@@ -161,56 +87,7 @@ const readGeoTif = async () => {
       indices.push(b, d, c);
     }
   }
-  // ======================
-  // 生成墙体数据
-  // ======================
-  let baseHeight = 0;
-  let wallPositions = [];
-  let minHeights = [];
-  let maxHeights = [];
 
-  // 左边边界
-  for (let y = 0; y < height; y++) {
-    const height = heights[y * width];
-    wallPositions.push(lons[y * width], lats[y * width]);
-    minHeights.push(baseHeight);
-    maxHeights.push(height);
-  }
-
-  // 下边边界
-  for (let x = 1; x < width; x++) {
-    const h = heights[(height - 1) * width + x];
-    wallPositions.push(lons[(height - 1) * width + x], lats[(height - 1) * width + x]);
-    minHeights.push(baseHeight);
-    maxHeights.push(h);
-  }
-  // 右边边界
-  for (let y = height - 2; y >= 0; y--) {
-    const idx = y * width + (width - 1);
-    const height = heights[idx];
-    wallPositions.push(lons[idx], lats[idx]);
-    minHeights.push(baseHeight);
-    maxHeights.push(height);
-  }
-  // 上边边界
-  for (let x = width - 2; x > 0; x--) {
-    const height = heights[x];
-    wallPositions.push(lons[x], lats[x]);
-    minHeights.push(baseHeight);
-    maxHeights.push(height);
-  }
-
-  viewer.entities.add({
-    wall: {
-      positions: Cesium.Cartesian3.fromDegreesArray(wallPositions),
-      minimumHeights: minHeights,
-      maximumHeights: maxHeights,
-      material: new Cesium.ImageMaterialProperty({
-        image: "agri-small-autumn.jpg",
-        repeat: new Cesium.Cartesian2(1, 1)
-      })
-    }
-  });
   // 创建 Geometry（用 let，因为后面要重新赋值）
   let geometry = new Cesium.Geometry({
     attributes: {
@@ -255,11 +132,11 @@ const readGeoTif = async () => {
   // 材质
   const material = new Cesium.Material({
     fabric: {
-      type: "Image",
+      type: "Color",
       uniforms: {
-        image: "agri-small-autumn.jpg"
-      },
-    },
+        color: Cesium.Color.WHITE.withAlpha(0.8) // 这里换成你需要的颜色
+      }
+    }
   });
 
   // 创建 Primitive
@@ -269,13 +146,19 @@ const readGeoTif = async () => {
     }),
     appearance: new Cesium.MaterialAppearance({
       material: material,
-      vertexFormat: Cesium.VertexFormat.POSITION_AND_ST,
+      vertexFormat: Cesium.VertexFormat.ALL,
     }),
     asynchronous: false,
   });
 
   viewer.scene.primitives.add(terrainPrimitive);
+  // 计算 Primitive 的中心
+  const boundingSphere = Cesium.BoundingSphere.fromVertices(new Float64Array(vertices));
+  const primitiveCenter = boundingSphere.center;
 
+  // 定义相机偏移（可以随意调节旋转半径和高度）
+  const offset = new Cesium.Cartesian3(0.0, -boundingSphere.radius * 3.0, boundingSphere.radius * 2.0);
 
+  viewer.camera.lookAt(primitiveCenter, offset);
 }
 readGeoTif();
