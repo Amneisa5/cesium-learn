@@ -244,7 +244,7 @@ const generateModelMatrix = (position = [0, 0, 0], rotation = [0, 0, 0], scale =
       position[2],
     );
   } else {
-    thrownewError('position 参数必须是 Cesium.Cartesian3 或长度为3的数组');
+    throw new Error('position 参数必须是 Cesium.Cartesian3 或长度为3的数组');
   }
   const enuMatrix =
     Cesium.Transforms.eastNorthUpToFixedFrame(cartesianPosition);
@@ -262,7 +262,8 @@ const generateModelMatrix = (position = [0, 0, 0], rotation = [0, 0, 0], scale =
 };
 
 const Command = `
-  const int textureSize = 256;
+  uniform int iWidth;
+  uniform int iHeight;
   // Render
   const vec3 backgroundColor = vec3(0.2);
   // Terrain
@@ -345,6 +346,8 @@ uniform sampler2D iChannel1;
 uniform sampler2D heightMap;
 uniform float   iTime;
 uniform int   iFrame;
+uniform int iWidth;
+uniform int iHeight;
 float boxNoise( in vec2 p, in float z )
 {
  vec2 fl = floor(p);
@@ -370,13 +373,13 @@ float Terrain( in vec2 p, in float z, in int octaveNum)
 
 vec2 readHeight(ivec2 p)
 {
- p = clamp(p, ivec2(0), ivec2(textureSize - 1));
+ p = clamp(p, ivec2(0), ivec2(iWidth - 1, iHeight - 1));
  return texelFetch(iChannel0, p, 0).xy;
 }
 
 vec4 readOutFlow(ivec2 p)
 {
- if(p.x < 0 || p.y < 0 || p.x >= textureSize || p.y >= textureSize)
+ if(p.x < 0 || p.y < 0 || p.x >= iWidth || p.y >= iHeight)
    return vec4(0);
  return texelFetch(iChannel1, p, 0);
 }
@@ -384,11 +387,11 @@ vec4 readOutFlow(ivec2 p)
 void main( )
 {
  // Outside ?
- if( max(gl_FragCoord.x, gl_FragCoord.y) > float(textureSize) )
+ if( gl_FragCoord.x >= float(iWidth) || gl_FragCoord.y >= float(iHeight) )
    discard;
 
  // Terrain
- vec2 uv = gl_FragCoord.xy / float(textureSize);
+ vec2 uv = gl_FragCoord.xy / vec2(float(iWidth), float(iHeight));
  float t = iTime / transitionTime;
  float terrainElevation = mix(Terrain(uv * 4.0, floor(t), octaves), Terrain(uv * 4.0, floor(t) + 1.0, octaves), smoothstep(1.0 - transitionPercent, 1.0, fract(t))) * 0.5;
  // Water
@@ -416,16 +419,18 @@ uniform sampler2D iChannel0;
 uniform sampler2D iChannel1;
 uniform float   iTime;
 uniform int   iFrame;
+uniform int iWidth;
+uniform int iHeight;
 vec2 readHeight(ivec2 p)
 {
- p = clamp(p, ivec2(0), ivec2(textureSize - 1));
+ p = clamp(p, ivec2(0), ivec2(iWidth - 1, iHeight - 1));
  return texelFetch(iChannel0, p, 0).xy;
 }
 
 float computeOutFlowDir(vec2 centerHeight, ivec2 pos)
 {
  vec2 dirHeight = readHeight(pos);
- return max(0.0f, (centerHeight.x + centerHeight.y) - (dirHeight.x + dirHeight.y));
+ return max(0.0, (centerHeight.x + centerHeight.y) - (dirHeight.x + dirHeight.y));
 }
 
 void main()
@@ -439,7 +444,7 @@ void main()
  }
 
  // Outside ?
- if( max(p.x, p.y) > textureSize )
+ if( p.x >= iWidth || p.y >= iHeight )
    discard;
 
 
@@ -474,15 +479,17 @@ uniform sampler2D iChannel0;
 uniform sampler2D iChannel1;
 uniform float   iTime;
 uniform int   iFrame;
+uniform int iWidth;
+uniform int iHeight;
 vec2 readHeight(ivec2 p)
 {
- p = clamp(p, ivec2(0), ivec2(textureSize - 1));
+ p = clamp(p, ivec2(0), ivec2(iWidth - 1, iHeight - 1));
  return texelFetch(iChannel0, p, 0).xy;
 }
 
 vec4 readOutFlow(ivec2 p)
 {
- if(p.x < 0 || p.y < 0 || p.x >= textureSize || p.y >= textureSize)
+ if(p.x < 0 || p.y < 0 || p.x >= iWidth || p.y >= iHeight)
    return vec4(0);
  return texelFetch(iChannel1, p, 0);
 }
@@ -490,7 +497,7 @@ vec4 readOutFlow(ivec2 p)
 void main( )
 {
  // Outside ?
- if( max(gl_FragCoord.x, gl_FragCoord.y) > float(textureSize) )
+ if( gl_FragCoord.x >= float(iWidth) || gl_FragCoord.y >= float(iHeight) )
    discard;
 
  // Water
@@ -515,16 +522,18 @@ uniform sampler2D iChannel0;
 uniform sampler2D iChannel1;
 uniform float   iTime;
 uniform int   iFrame;
+uniform int iWidth;
+uniform int iHeight;
 vec2 readHeight(ivec2 p)
 {
- p = clamp(p, ivec2(0), ivec2(textureSize - 1));
+ p = clamp(p, ivec2(0), ivec2(iWidth - 1, iHeight - 1));
  return texelFetch(iChannel0, p, 0).xy;
 }
 
 float computeOutFlowDir(vec2 centerHeight, ivec2 pos)
 {
  vec2 dirHeight = readHeight(pos);
- return max(0.0f, (centerHeight.x + centerHeight.y) - (dirHeight.x + dirHeight.y));
+ return max(0.0, (centerHeight.x + centerHeight.y) - (dirHeight.x + dirHeight.y));
 }
 
 void main( )
@@ -532,7 +541,7 @@ void main( )
  ivec2 p = ivec2(gl_FragCoord.xy);
 
  // Outside ?
- if( max(p.x, p.y) > textureSize )
+ if( p.x >= iWidth || p.y >= iHeight )
    discard;
 
 
@@ -572,6 +581,8 @@ uniform sampler2D iChannel1;
 uniform vec2   iResolution;
 uniform float   iTime;
 uniform int   iFrame;
+uniform int iWidth;
+uniform int iHeight;
 in vec3 vo;
 in vec3 vd;
 in vec2 v_st;
@@ -580,8 +591,8 @@ const float boxHeight = 0.45;
 vec2 getHeight(in vec3 p)
 {
  p = (p + 1.0) * 0.5;
- vec2 p2 = p.xz * vec2(float(textureSize)) / iResolution.xy;
- p2 = min(p2, vec2(float(textureSize) - 0.5) / iResolution.xy);
+ vec2 p2 = p.xz;
+ p2 = min(p2, (iResolution - vec2(0.5)) / iResolution);
  vec2 h = texture(iChannel0, p2).xy;
  h.y += h.x;
  return h - boxHeight;
@@ -589,11 +600,11 @@ vec2 getHeight(in vec3 p)
 
 vec3 getNormal(in vec3 p, int comp)
 {
- float d = 2.0 / float(textureSize);
+ vec2 d = 2.0 / iResolution;
  float hMid = getHeight(p)[comp];
- float hRight = getHeight(p + vec3(d, 0, 0))[comp];
- float hTop = getHeight(p + vec3(0, 0, d))[comp];
- return normalize(cross(vec3(0, hTop - hMid, d), vec3(d, hRight - hMid, 0)));
+ float hRight = getHeight(p + vec3(d.x, 0, 0))[comp];
+ float hTop = getHeight(p + vec3(0, 0, d.y))[comp];
+ return normalize(cross(vec3(0, hTop - hMid, d.y), vec3(d.x, hRight - hMid, 0)));
 }
 
 vec3 terrainColor(in vec3 p, in vec3 n, out float spec)
@@ -714,12 +725,12 @@ class FluidDemo {
   _width;
   _height;
   _resolution;
-  constructor(viewer) {
+  constructor(viewer, width, height, lonLatBounds) {
     this._viewer = viewer;
 
     // 分辨率
-    this._width = 256;
-    this._height = 256;
+    this._width = width || 256;
+    this._height = height || 256;
 
     this._resolution = new Cesium.Cartesian2(this._width, this._height);
 
@@ -774,6 +785,12 @@ class FluidDemo {
         resolution: () => {
           return this._resolution;
         },
+        iWidth: () => {
+          return this._width;
+        },
+        iHeight: () => {
+          return this._height;
+        },
         iChannel0: () => {
           return texC;
         },
@@ -803,6 +820,12 @@ class FluidDemo {
         },
         resolution: () => {
           return this._resolution;
+        },
+        iWidth: () => {
+          return this._width;
+        },
+        iHeight: () => {
+          return this._height;
         },
         iChannel0: () => {
           return texA;
@@ -834,6 +857,12 @@ class FluidDemo {
         resolution: () => {
           return this._resolution;
         },
+        iWidth: () => {
+          return this._width;
+        },
+        iHeight: () => {
+          return this._height;
+        },
         iChannel0: () => {
           return texA;
         },
@@ -863,6 +892,12 @@ class FluidDemo {
         },
         resolution: () => {
           return this._resolution;
+        },
+        iWidth: () => {
+          return this._width;
+        },
+        iHeight: () => {
+          return this._height;
         },
         iChannel0: () => {
           return texC;
@@ -937,6 +972,12 @@ class FluidDemo {
         },
         iResolution: () => {
           return this._resolution;
+        },
+        iWidth: () => {
+          return this._width;
+        },
+        iHeight: () => {
+          return this._height;
         },
         iChannel0: () => {
           return texC;
@@ -1108,7 +1149,7 @@ const readGeoTif = async () => {
   viewer.scene.primitives.add(terrainPrimitive);
 
   // 添加流体
-  const fluid = new FluidDemo(viewer, width, height, lonLatBounds = { lonMin: 120, lonMax: 123.5, latMin: 30, latMax: 32.5 });
+  const fluid = new FluidDemo(viewer, width, height, { lonMin: 120, lonMax: 123.5, latMin: 30, latMax: 32.5 });
 }
 const viewer = new Cesium.Viewer("map",
   {
