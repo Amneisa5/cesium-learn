@@ -244,7 +244,7 @@ const generateModelMatrix = (position = [0, 0, 0], rotation = [0, 0, 0], scale =
       position[2],
     );
   } else {
-    throw new Error('position 参数必须是 Cesium.Cartesian3 或长度为3的数组');
+    thrownewError('position 参数必须是 Cesium.Cartesian3 或长度为3的数组');
   }
   const enuMatrix =
     Cesium.Transforms.eastNorthUpToFixedFrame(cartesianPosition);

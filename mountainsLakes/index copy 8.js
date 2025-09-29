@@ -244,7 +244,7 @@ const generateModelMatrix = (position = [0, 0, 0], rotation = [0, 0, 0], scale =
       position[2],
     );
   } else {
-    throw new Error('position 参数必须是 Cesium.Cartesian3 或长度为3的数组');
+    thrownewError('position 参数必须是 Cesium.Cartesian3 或长度为3的数组');
   }
   const enuMatrix =
     Cesium.Transforms.eastNorthUpToFixedFrame(cartesianPosition);
@@ -262,6 +262,7 @@ const generateModelMatrix = (position = [0, 0, 0], rotation = [0, 0, 0], scale =
 };
 
 const Command = `
+  const int textureSize = 256;
   // Render
   const vec3 backgroundColor = vec3(0.2);
   // Terrain
@@ -273,9 +274,7 @@ const Command = `
   const float strenght = 0.25;
   const float minTotalFlow = 0.0001;
   const float initialWaterLevel = 0.05;
-  const int terrainWidth = 840;
-  const int terrainHeight = 600;
-  // textureSize will be set dynamically
+
   mat2 rot(in float ang)
   {
    return mat2(
@@ -371,15 +370,13 @@ float Terrain( in vec2 p, in float z, in int octaveNum)
 
 vec2 readHeight(ivec2 p)
 {
- p = clamp(p, ivec2(0), ivec2(terrainWidth - 1, terrainHeight - 1));
- float terrainH = texelFetch(heightMap, p, 0).r;
- float waterH = initialWaterLevel;
- return vec2(terrainH, waterH);
+ p = clamp(p, ivec2(0), ivec2(textureSize - 1));
+ return texelFetch(iChannel0, p, 0).xy;
 }
 
 vec4 readOutFlow(ivec2 p)
 {
- if(p.x < 0 || p.y < 0 || p.x >= terrainWidth || p.y >= terrainHeight)
+ if(p.x < 0 || p.y < 0 || p.x >= textureSize || p.y >= textureSize)
    return vec4(0);
  return texelFetch(iChannel1, p, 0);
 }
@@ -387,13 +384,13 @@ vec4 readOutFlow(ivec2 p)
 void main( )
 {
  // Outside ?
-//  if( gl_FragCoord.x > float(terrainWidth) || gl_FragCoord.y > float(terrainHeight))
-//    discard;
+ if( max(gl_FragCoord.x, gl_FragCoord.y) > float(textureSize) )
+   discard;
 
- // Terrain - 使用TIF数据
- ivec2 p = ivec2(gl_FragCoord.xy);
- vec2 height = readHeight(p);
- float terrainElevation = height.x ; // 使用TIF数据中的高度
+ // Terrain
+ vec2 uv = gl_FragCoord.xy / float(textureSize);
+ float t = iTime / transitionTime;
+ float terrainElevation = mix(Terrain(uv * 4.0, floor(t), octaves), Terrain(uv * 4.0, floor(t) + 1.0, octaves), smoothstep(1.0 - transitionPercent, 1.0, fract(t))) * 0.5;
  // Water
  float waterDept = initialWaterLevel;
  if(iFrame != 0)
@@ -410,7 +407,6 @@ void main( )
    waterDept = height.y - totalOutFlow + totalInFlow;
  }
  out_FragColor = vec4(terrainElevation, waterDept, 0, 1);
-
 }
 `
 
@@ -418,15 +414,12 @@ const BufferB = `
   // Update Outflow 1st pass
 uniform sampler2D iChannel0;
 uniform sampler2D iChannel1;
-uniform sampler2D heightMap;
 uniform float   iTime;
 uniform int   iFrame;
 vec2 readHeight(ivec2 p)
 {
- p = clamp(p, ivec2(0), ivec2(terrainWidth - 1, terrainHeight - 1));
- float terrainH = texelFetch(heightMap, p, 0).r;
- float waterH = initialWaterLevel;
- return vec2(terrainH, waterH);
+ p = clamp(p, ivec2(0), ivec2(textureSize - 1));
+ return texelFetch(iChannel0, p, 0).xy;
 }
 
 float computeOutFlowDir(vec2 centerHeight, ivec2 pos)
@@ -446,7 +439,7 @@ void main()
  }
 
  // Outside ?
-if(p.x < 0 || p.y < 0 || p.x >= terrainWidth || p.y >= terrainHeight)
+ if( max(p.x, p.y) > textureSize )
    discard;
 
 
@@ -479,20 +472,17 @@ const BufferC = `
 // water level 2nd pass
 uniform sampler2D iChannel0;
 uniform sampler2D iChannel1;
-uniform sampler2D heightMap;
 uniform float   iTime;
 uniform int   iFrame;
 vec2 readHeight(ivec2 p)
 {
- p = clamp(p, ivec2(0), ivec2(terrainWidth - 1, terrainHeight - 1));
- float terrainH = texelFetch(heightMap, p, 0).r;
- float waterH = initialWaterLevel;
- return vec2(terrainH, waterH);
+ p = clamp(p, ivec2(0), ivec2(textureSize - 1));
+ return texelFetch(iChannel0, p, 0).xy;
 }
 
 vec4 readOutFlow(ivec2 p)
 {
- if(p.x < 0 || p.y < 0 || p.x >= terrainWidth || p.y >= terrainHeight)
+ if(p.x < 0 || p.y < 0 || p.x >= textureSize || p.y >= textureSize)
    return vec4(0);
  return texelFetch(iChannel1, p, 0);
 }
@@ -500,7 +490,7 @@ vec4 readOutFlow(ivec2 p)
 void main( )
 {
  // Outside ?
- if( gl_FragCoord.x > float(terrainWidth) || gl_FragCoord.y > float(terrainHeight))
+ if( max(gl_FragCoord.x, gl_FragCoord.y) > float(textureSize) )
    discard;
 
  // Water
@@ -523,15 +513,12 @@ const BufferD = `
 // Update Outflow 2nd pass
 uniform sampler2D iChannel0;
 uniform sampler2D iChannel1;
-uniform sampler2D heightMap;
 uniform float   iTime;
 uniform int   iFrame;
 vec2 readHeight(ivec2 p)
 {
- p = clamp(p, ivec2(0), ivec2(terrainWidth - 1, terrainHeight - 1));
- float terrainH = texelFetch(heightMap, p, 0).r;
- float waterH = initialWaterLevel;
- return vec2(terrainH, waterH);
+ p = clamp(p, ivec2(0), ivec2(textureSize - 1));
+ return texelFetch(iChannel0, p, 0).xy;
 }
 
 float computeOutFlowDir(vec2 centerHeight, ivec2 pos)
@@ -545,7 +532,7 @@ void main( )
  ivec2 p = ivec2(gl_FragCoord.xy);
 
  // Outside ?
- if( p.x > terrainWidth || p.y > terrainHeight)
+ if( max(p.x, p.y) > textureSize )
    discard;
 
 
@@ -592,57 +579,35 @@ const vec3 light = vec3(0.,4.,2.);
 const float boxHeight = 0.45;
 vec2 getHeight(in vec3 p)
 {
- // Cesium BoxGeometry 的坐标范围是 [-0.5, 0.5]
- // 需要变换到 [0, 1] 的UV坐标范围
- vec2 uv = (p.xz + 0.5);
- // 确保UV坐标在有效范围内
- uv = clamp(uv, 0.0, 1.0);
- vec2 h = texture(iChannel0, uv).xy;
+ p = (p + 1.0) * 0.5;
+ vec2 p2 = p.xz * vec2(float(textureSize)) / iResolution.xy;
+ p2 = min(p2, vec2(float(textureSize) - 0.5) / iResolution.xy);
+ vec2 h = texture(iChannel0, p2).xy;
  h.y += h.x;
  return h - boxHeight;
 }
 
 vec3 getNormal(in vec3 p, int comp)
 {
- vec2 d = 2.0 / vec2(terrainWidth, terrainHeight);
+ float d = 2.0 / float(textureSize);
  float hMid = getHeight(p)[comp];
- float hRight = getHeight(p + vec3(d.x, 0, 0))[comp];
- float hTop = getHeight(p + vec3(0, 0, d.y))[comp];
- return normalize(cross(vec3(0, hTop - hMid, d.y), vec3(d.x, hRight - hMid, 0)));
+ float hRight = getHeight(p + vec3(d, 0, 0))[comp];
+ float hTop = getHeight(p + vec3(0, 0, d))[comp];
+ return normalize(cross(vec3(0, hTop - hMid, d), vec3(d, hRight - hMid, 0)));
 }
 
 vec3 terrainColor(in vec3 p, in vec3 n, out float spec)
 {
  spec = 0.1;
- 
- // 获取高度信息用于颜色映射
- vec2 h = getHeight(p);
- float nh = h.x; // 归一化高度 (0-1)
- 
- // 用程序化渐变（沙滩-草地-岩石-积雪）
- vec3 c1 = vec3(0.90, 0.85, 0.70); // 低海拔沙色
- vec3 c2 = vec3(0.20, 0.55, 0.25); // 草地绿
- vec3 c3 = vec3(0.45, 0.40, 0.35); // 岩石棕
- vec3 c4 = vec3(0.95, 0.95, 0.98); // 积雪白
- vec3 ramp = mix(c1, c2, smoothstep(0.05, 0.35, nh));
- ramp = mix(ramp, c3, smoothstep(0.35, 0.70, nh));
- ramp = mix(ramp, c4, smoothstep(0.75, 0.92, nh));
- 
- // 根据地形特征调整颜色
+ vec3 c = vec3(0.21, 0.50, 0.07);
  float cliff = smoothstep(0.8, 0.3, n.y);
- ramp = mix(ramp, vec3(0.25), cliff);
+ c = mix(c, vec3(0.25), cliff);
  spec = mix(spec, 0.3, cliff);
- 
- // 积雪效果
  float snow = smoothstep(0.05, 0.25, p.y) * smoothstep(0.5, 0.7, n.y);
- ramp = mix(ramp, vec3(0.95, 0.95, 0.85), snow);
+ c = mix(c, vec3(0.95, 0.95, 0.85), snow);
  spec = mix(spec, 0.4, snow);
- 
- // 添加纹理细节 - 使用TIF高度纹理作为细节纹理
  vec3 t = texture(iChannel1, p.xz * 5.0).xyz;
- ramp = mix(ramp, ramp * t, 0.2); // 减少纹理混合强度
- 
- return ramp;
+ return mix(c, c * t, 0.75);
 }
 
 vec3 undergroundColor(float d)
@@ -748,83 +713,52 @@ class FluidDemo {
   _viewer;
   _width;
   _height;
-  _textureSize;
-  _textureData;
   _resolution;
-  _lonLatBounds;
-  constructor(viewer, width, height, textureData, lonLatBounds) {
+  constructor(viewer) {
     this._viewer = viewer;
-    this._width = width;
-    this._height = height;
-    this._lonLatBounds = lonLatBounds;
-    this._textureWidth = width; // 使用TIF文件的真实宽度
-    this._textureHeight = height; // 使用TIF文件的真实高度
-    this._textureData = textureData;
 
-    this._resolution = new Cesium.Cartesian2(this._textureWidth, this._textureHeight);
+    // 分辨率
+    this._width = 256;
+    this._height = 256;
+
+    this._resolution = new Cesium.Cartesian2(this._width, this._height);
 
     this.initShaderToy();
   }
   initShaderToy () {
-    // 动态设置textureSize，使用较大的尺寸作为着色器网格
-    const dynamicCommand = Command.replace(
-      `const int textureWidth = ${this._textureWidth};\nconst int textureHeight = ${this._textureHeight};`
-    );
-    console.log(this._textureData)
-    // 创建独立的TIF高度纹理（只读）
-    const tifHeightTexture = RenderUtil.createTexture({
-      context: this._viewer.scene.context,
-      width: this._textureWidth,
-      height: this._textureHeight,
-      pixelFormat: Cesium.PixelFormat.RGBA,
-      pixelDatatype: Cesium.PixelDatatype.FLOAT,
-      arrayBufferView: this._textureData, // 使用TIF数据
-      sampler: new Cesium.Sampler({
-        wrapS: Cesium.TextureWrap.CLAMP_TO_EDGE,
-        wrapT: Cesium.TextureWrap.CLAMP_TO_EDGE,
-        magnificationFilter: Cesium.TextureMagnificationFilter.LINEAR,
-        minificationFilter: Cesium.TextureMinificationFilter.LINEAR,
-      }),
-    });
-
-    // 创建流体数据纹理，使用真实的TIF宽高
     const texA = RenderUtil.createTexture({
       context: this._viewer.scene.context,
-      width: this._textureWidth,
-      height: this._textureHeight,
+      width: this._width,
+      height: this._height,
       pixelFormat: Cesium.PixelFormat.RGBA,
       pixelDatatype: Cesium.PixelDatatype.FLOAT,
-      arrayBufferView: new Float32Array(this._textureWidth * this._textureHeight * 4),
+      arrayBufferView: new Float32Array(this._width * this._height * 4),
     });
-    console.log("TIF高度纹理:", tifHeightTexture)
     const texB = RenderUtil.createTexture({
       context: this._viewer.scene.context,
-      width: this._textureWidth,
-      height: this._textureHeight,
+      width: this._width,
+      height: this._height,
       pixelFormat: Cesium.PixelFormat.RGBA,
       pixelDatatype: Cesium.PixelDatatype.FLOAT,
-      arrayBufferView: new Float32Array(this._textureWidth * this._textureHeight * 4),
+      arrayBufferView: new Float32Array(this._width * this._height * 4),
     });
     const texC = RenderUtil.createTexture({
       context: this._viewer.scene.context,
-      width: this._textureWidth,
-      height: this._textureHeight,
+      width: this._width,
+      height: this._height,
       pixelFormat: Cesium.PixelFormat.RGBA,
       pixelDatatype: Cesium.PixelDatatype.FLOAT,
-      arrayBufferView: new Float32Array(this._textureWidth * this._textureHeight * 4),
+      arrayBufferView: new Float32Array(this._width * this._height * 4),
     });
     const texD = RenderUtil.createTexture({
       context: this._viewer.scene.context,
-      width: this._textureWidth,
-      height: this._textureHeight,
+      width: this._width,
+      height: this._height,
       pixelFormat: Cesium.PixelFormat.RGBA,
       pixelDatatype: Cesium.PixelDatatype.FLOAT,
-      arrayBufferView: new Float32Array(this._textureWidth * this._textureHeight * 4),
+      arrayBufferView: new Float32Array(this._width * this._height * 4),
     });
-    console.log("流体数据纹理:", texA)
-    console.log("流体数据纹理:", texB)
-    console.log("流体数据纹理:", texC)
-    console.log("流体数据纹理:", texD)
+
     // Render Buffers
     const quadGeometry = RenderUtil.getFullscreenQuad();
     // BufferA
@@ -841,17 +775,14 @@ class FluidDemo {
           return this._resolution;
         },
         iChannel0: () => {
-          return texA; // 使用空的texA作为输入
+          return texC;
         },
         iChannel1: () => {
           return texD;
         },
-        heightMap: () => {
-          return tifHeightTexture; // 使用独立的TIF高度纹理
-        },
       },
       fragmentShaderSource: new Cesium.ShaderSource({
-        sources: [dynamicCommand, BufferA],
+        sources: [Command, BufferA],
       }),
       geometry: quadGeometry,
       outputTexture: texA,
@@ -879,12 +810,9 @@ class FluidDemo {
         iChannel1: () => {
           return texD;
         },
-        heightMap: () => {
-          return tifHeightTexture; // 使用独立的TIF高度纹理
-        },
       },
       fragmentShaderSource: new Cesium.ShaderSource({
-        sources: [dynamicCommand, BufferB],
+        sources: [Command, BufferB],
       }),
       geometry: quadGeometry,
       outputTexture: texB,
@@ -912,12 +840,9 @@ class FluidDemo {
         iChannel1: () => {
           return texB;
         },
-        heightMap: () => {
-          return tifHeightTexture; // 使用独立的TIF高度纹理
-        },
       },
       fragmentShaderSource: new Cesium.ShaderSource({
-        sources: [dynamicCommand, BufferC],
+        sources: [Command, BufferC],
       }),
       geometry: quadGeometry,
       outputTexture: texC,
@@ -945,12 +870,9 @@ class FluidDemo {
         iChannel1: () => {
           return texB;
         },
-        heightMap: () => {
-          return tifHeightTexture; // 使用独立的TIF高度纹理
-        },
       },
       fragmentShaderSource: new Cesium.ShaderSource({
-        sources: [dynamicCommand, BufferD],
+        sources: [Command, BufferD],
       }),
       geometry: quadGeometry,
       outputTexture: texD,
@@ -960,55 +882,29 @@ class FluidDemo {
     });
 
     // Render Box
-    // let terrainMap = this._viewer.scene.frameState.context.defaultTexture;
-    // Cesium.Resource.fetchImage({
-    //   url: 'terrain.jpg',
-    // }).then((image) => {
-    //   terrainMap = new Cesium.Texture({
-    //     context: this._viewer.scene.frameState.context,
-    //     source: image,
-    //     sampler: new Cesium.Sampler({
-    //       wrapS: Cesium.TextureWrap.REPEAT,
-    //       wrapT: Cesium.TextureWrap.REPEAT,
-    //       magnificationFilter: Cesium.TextureMagnificationFilter.LINEAR,
-    //       minificationFilter:
-    //         Cesium.TextureMinificationFilter.LINEAR_MIPMAP_LINEAR,
-    //     }),
-    //   });
-    //   terrainMap.generateMipmap();
-    // });
+    let terrainMap = this._viewer.scene.frameState.context.defaultTexture;
+    Cesium.Resource.fetchImage({
+      url: 'terrain.jpg',
+    }).then((image) => {
+      terrainMap = new Cesium.Texture({
+        context: this._viewer.scene.frameState.context,
+        source: image,
+        sampler: new Cesium.Sampler({
+          wrapS: Cesium.TextureWrap.REPEAT,
+          wrapT: Cesium.TextureWrap.REPEAT,
+          magnificationFilter: Cesium.TextureMagnificationFilter.LINEAR,
+          minificationFilter:
+            Cesium.TextureMinificationFilter.LINEAR_MIPMAP_LINEAR,
+        }),
+      });
+      terrainMap.generateMipmap();
+    });
 
-    // Render Command - 根据TIF文件的地理范围调整几何体尺寸
-    // 计算地理范围的实际距离
-    const lonRange = this._lonLatBounds.lonMax - this._lonLatBounds.lonMin; // 123.5 - 120 = 3.5度
-    const latRange = this._lonLatBounds.latMax - this._lonLatBounds.latMin; // 32.5 - 30 = 2.5度
-
-    // 根据TIF文件的实际尺寸比例计算几何体尺寸
-    const tifAspectRatio = this._width / this._height; // 840/600 = 1.4
-    const baseScale = 2000; // 基础缩放因子
-    const width = baseScale * tifAspectRatio; // 2000 * 1.4 = 2800
-    const height = baseScale; // 2000
-    const depth = 1700; // 保持深度不变
-
-    // 计算TIF文件的地理中心点
-    const lonCenter = (this._lonLatBounds.lonMin + this._lonLatBounds.lonMax) / 2; // (120 + 123.5) / 2 = 121.75
-    const latCenter = (this._lonLatBounds.latMin + this._lonLatBounds.latMax) / 2; // (30 + 32.5) / 2 = 31.25
-
-    console.log("地理范围:", this._lonLatBounds.lonMin, "-", this._lonLatBounds.lonMax, "°E,",
-      this._lonLatBounds.latMin, "-", this._lonLatBounds.latMax, "°N");
-    console.log("地理跨度:", lonRange, "°经度,", latRange, "°纬度");
-    console.log("TIF文件尺寸:", this._width, "x", this._height);
-    console.log("TIF宽高比:", tifAspectRatio);
-    console.log("几何体尺寸:", width, "x", height, "x", depth);
-    console.log("地理中心点:", lonCenter, "°E,", latCenter, "°N");
-    console.log("iResolution:", this._resolution.x, "x", this._resolution.y);
-    console.log("terrainWidth:", this._textureWidth, "terrainHeight:", this._textureHeight);
-    console.log("动态替换后的Command片段:", dynamicCommand.substring(0, 200));
-
+    // Render Command
     const modelMatrix = generateModelMatrix(
-      [lonCenter, latCenter, 300], // 使用TIF文件的地理中心点
+      [120.20998865783179, 30.13650797533829, 300],
       [90, 0, 0],
-      [width, height, depth],
+      [2000, 600, 1700],
     );
     const boxGeometry = Cesium.BoxGeometry.fromDimensions({
       vertexFormat: Cesium.VertexFormat.POSITION_AND_ST,
@@ -1046,7 +942,7 @@ class FluidDemo {
           return texC;
         },
         iChannel1: () => {
-          return tifHeightTexture; // 使用TIF高度纹理
+          return terrainMap;
         },
       },
       geometry: geometry,
@@ -1072,15 +968,9 @@ class FluidDemo {
         ],
       }),
       fragmentShaderSource: new Cesium.ShaderSource({
-        sources: [dynamicCommand + renderShaderSource],
+        sources: [Command + renderShaderSource],
       }),
     });
-
-    // 调试：输出TIF纹理为图片
-    // this.debugTifTexture(tifHeightTexture);
-
-    // 调试：直接从原始数据创建图片
-    // this.debugRawTifData();
 
     // Render Event
     let time = 1.0;
@@ -1097,230 +987,128 @@ class FluidDemo {
     this._viewer.scene.primitives.add(Buffer_D);
     this._viewer.scene.primitives.add(fluidCommand);
   }
-
-  // 调试方法：将TIF纹理输出为图片
-  debugTifTexture (texture) {
-    console.log('调试TIF纹理:', texture);
-    console.log('纹理尺寸:', this._width, 'x', this._height);
-
-    // 延迟执行，确保纹理已加载
-    setTimeout(() => {
-      const canvas = document.createElement('canvas');
-      canvas.width = this._width;
-      canvas.height = this._height;
-      const ctx = canvas.getContext('2d');
-
-      // 创建ImageData
-      const imageData = ctx.createImageData(this._width, this._height);
-
-      // 从纹理读取像素数据
-      const gl = this._viewer.scene.context._gl;
-      const framebuffer = gl.createFramebuffer();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-
-      // 检查纹理是否有效
-      if (!texture._texture) {
-        console.error('纹理对象无效');
-        return;
-      }
-
-      // 检查纹理状态
-      console.log('纹理对象:', texture);
-      console.log('纹理ID:', texture._texture);
-      console.log('纹理尺寸:', texture.width, 'x', texture.height);
-
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture._texture, 0);
-
-      // 检查framebuffer状态
-      const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-      if (status !== gl.FRAMEBUFFER_COMPLETE) {
-        console.error('Framebuffer不完整，状态:', status);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.deleteFramebuffer(framebuffer);
-        return;
-      }
-
-      // 尝试不同的像素格式读取
-      const pixels = new Float32Array(this._width * this._height * 4);
-      gl.readPixels(0, 0, this._width, this._height, gl.RGBA, gl.FLOAT, pixels);
-
-      console.log('读取的像素数据:', pixels.slice(0, 20)); // 只显示前20个像素
-
-      // 检查是否有非零数据
-      let hasNonZeroData = false;
-      for (let i = 0; i < pixels.length; i++) {
-        if (pixels[i] !== 0) {
-          hasNonZeroData = true;
-          break;
-        }
-      }
-
-      if (!hasNonZeroData) {
-        console.warn('所有像素数据都为零，尝试使用Uint8Array读取');
-
-        // 尝试使用Uint8Array读取
-        const pixelsUint8 = new Uint8Array(this._width * this._height * 4);
-        gl.readPixels(0, 0, this._width, this._height, gl.RGBA, gl.UNSIGNED_BYTE, pixelsUint8);
-
-        console.log('Uint8Array读取的像素数据:', pixelsUint8.slice(0, 20));
-
-        // 使用Uint8Array数据，修复上下镜像
-        for (let y = 0; y < this._height; y++) {
-          for (let x = 0; x < this._width; x++) {
-            const pixelIndex = (y * this._width + x) * 4;
-            const imageIndex = (y * this._width + x) * 4;
-
-            const height = pixelsUint8[pixelIndex]; // R通道
-            imageData.data[imageIndex] = height;     // R
-            imageData.data[imageIndex + 1] = height; // G
-            imageData.data[imageIndex + 2] = height; // B
-            imageData.data[imageIndex + 3] = 255;    // A
-          }
-        }
-      } else {
-        // 使用Float32Array数据，修复上下镜像
-        for (let y = 0; y < this._height; y++) {
-          for (let x = 0; x < this._width; x++) {
-            const pixelIndex = (y * this._width + x) * 4;
-            const imageIndex = (y * this._width + x) * 4;
-
-            const height = Math.floor(pixels[pixelIndex] * 255); // R通道，转换为0-255
-            imageData.data[imageIndex] = height;     // R
-            imageData.data[imageIndex + 1] = height; // G
-            imageData.data[imageIndex + 2] = height; // B
-            imageData.data[imageIndex + 3] = 255;    // A
-          }
-        }
-      }
-
-      // 绘制到canvas
-      ctx.putImageData(imageData, 0, 0);
-
-      // 创建下载链接
-      const link = document.createElement('a');
-      link.download = 'tif_height_texture.png';
-      link.href = canvas.toDataURL();
-
-      // 添加到页面并自动下载
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      // 清理
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.deleteFramebuffer(framebuffer);
-
-      console.log('TIF纹理已输出为图片，文件名：tif_height_texture.png');
-      console.log('纹理尺寸：', this._width, 'x', this._height);
-    }, 2000); // 增加延迟时间到2秒
-  }
-
-  // 调试方法：直接从原始TIF数据创建图片
-  debugRawTifData () {
-    console.log('调试原始TIF数据:', this._textureData);
-    console.log('数据长度:', this._textureData.length);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = this._width;
-    canvas.height = this._height;
-    const ctx = canvas.getContext('2d');
-
-    // 创建ImageData
-    const imageData = ctx.createImageData(this._width, this._height);
-
-    // 将原始数据映射到图片
-    for (let y = 0; y < this._height; y++) {
-      for (let x = 0; x < this._width; x++) {
-        const pixelIndex = (y * this._width + x) * 4; // 每个像素4个分量
-        // 修复上下镜像：翻转Y坐标
-        const flippedY = this._height - 1 - y;
-        const imageIndex = (flippedY * this._width + x) * 4;
-
-        // 获取R通道的高度数据（已经归一化到0-1）
-        const normalizedHeight = this._textureData[pixelIndex];
-
-        // 直接映射到0-255范围
-        let mappedHeight = Math.floor(normalizedHeight * 255);
-        mappedHeight = Math.max(0, Math.min(255, mappedHeight)); // 确保在0-255范围内
-
-        imageData.data[imageIndex] = mappedHeight;     // R
-        imageData.data[imageIndex + 1] = mappedHeight; // G
-        imageData.data[imageIndex + 2] = mappedHeight; // B
-        imageData.data[imageIndex + 3] = 255;          // A
-      }
-    }
-
-    // 绘制到canvas
-    ctx.putImageData(imageData, 0, 0);
-
-    // 创建下载链接
-    const link = document.createElement('a');
-    link.download = 'raw_tif_data.png';
-    link.href = canvas.toDataURL();
-
-    // 添加到页面并自动下载
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    console.log('原始TIF数据已输出为图片，文件名：raw_tif_data.png');
-  }
 };
 // viewer.camera.lookAt(boxCenter, new Cesium.Cartesian3(0.0, -10000.0, 5000.0));
 const readGeoTif = async () => {
   const terrain = "gebco_2023_n32.5_s30.0_w120.0_e123.5.tif";
   const rawTiff = await GeoTIFF.fromUrl(terrain);
   const tifImage = await rawTiff.getImage();
-  const tifWidth = tifImage.getWidth();
-  const tifHeight = tifImage.getHeight();
-  console.log("TIF尺寸:", tifWidth, "x", tifHeight);
-
-  // 使用TIF的真实尺寸
-  console.log("使用TIF真实尺寸:", tifWidth, "x", tifHeight);
-
-  // 读取TIF数据
-  const tifData = await tifImage.readRasters({ interleave: true });
-
-  // 直接使用TIF数据，不进行采样
-  textureData = new Float32Array(tifWidth * tifHeight * 4);
-
-  // 计算高度范围用于归一化
-  let minHeight = tifData[0];
-  let maxHeight = tifData[0];
-  for (let i = 1; i < tifData.length; i++) {
-    if (tifData[i] < minHeight) minHeight = tifData[i];
-    if (tifData[i] > maxHeight) maxHeight = tifData[i];
+  const width = tifImage.getWidth();
+  const height = tifImage.getHeight();
+  console.log(width, height)
+  textureData = new Float32Array(width * height * 4);
+  const data = await tifImage.readRasters({ interleave: true });
+  for (let i = 0; i < width * height; i++) {
+    textureData[i * 4] = data[i];      // 高度
+    textureData[i * 4 + 1] = 0;
+    textureData[i * 4 + 2] = 0;
+    textureData[i * 4 + 3] = 1;
   }
-  console.log("TIF高度范围:", minHeight, "到", maxHeight, "米");
+  const vertices = [];
+  const uvs = [];
+  const indices = [];
 
-  // 直接使用TIF数据，从底部开始读取以匹配GLSL坐标系统
-  for (let y = 0; y < tifHeight; y++) {
-    for (let x = 0; x < tifWidth; x++) {
-      // 从底部开始读取，匹配GLSL的UV坐标系统
-      const tifIndex = (tifHeight - 1 - y) * tifWidth + x;
-
-      // 获取原始高度值
-      const rawHeight = tifData[tifIndex];
-
-      // 归一化到0-1范围
-      const normalizedHeight = (rawHeight - minHeight) / (maxHeight - minHeight);
-
-      const index = (y * tifWidth + x) * 4;
-      textureData[index] = normalizedHeight;     // 归一化高度
-      textureData[index + 1] = 0;               // 初始水位
-      textureData[index + 2] = 0;               // 未使用
-      textureData[index + 3] = 1;               // Alpha
+  const heights = []
+  const lats = [];
+  const lons = [];
+  const lonMin = 120, lonMax = 123.5;
+  const latMin = 30, latMax = 32.5;
+  // 顶点坐标 + UV
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const index = y * width + x;
+      const lon = lonMin + (x / (width - 1)) * (lonMax - lonMin);
+      const lat = latMin + (y / (height - 1)) * (latMax - latMin);
+      const h = data[index] * 50;
+      heights.push(h);
+      // 经纬度转世界笛卡尔坐标
+      const cartesian = Cesium.Cartesian3.fromDegrees(lon, lat, h);
+      vertices.push(cartesian.x, cartesian.y, cartesian.z);
+      lats.push(lat);
+      lons.push(lon);
+      uvs.push(x / (width - 1), y / (height - 1));
     }
   }
 
-  console.log("TIF数据已直接使用，从底部开始读取以匹配GLSL坐标系统");
+  // 三角形索引
+  for (let y = 0; y < height - 1; y++) {
+    for (let x = 0; x < width - 1; x++) {
+      const a = y * width + x;
+      const b = a + 1;
+      const c = (y + 1) * width + x;
+      const d = c + 1;
 
-  // 暂时不创建3D地形几何体，只使用TIF数据作为高度纹理
-  console.log("跳过3D地形创建，使用TIF数据作为高度纹理");
-  console.log(textureData)
-  console.log("TIF尺寸:", tifWidth, "x", tifHeight)
-  // 添加流体系统，使用TIF真实尺寸
-  const fluid = new FluidDemo(viewer, tifWidth, tifHeight, textureData, { lonMin: 120, lonMax: 123.5, latMin: 30, latMax: 32.5 });
+      indices.push(a, b, c);
+      indices.push(b, d, c);
+    }
+  }
+
+  // 创建 Geometry（用 let，因为后面要重新赋值）
+  let geometry = new Cesium.Geometry({
+    attributes: {
+      // 笛卡尔积坐标
+      position: new Cesium.GeometryAttribute({
+        componentDatatype: Cesium.ComponentDatatype.DOUBLE, // 必须 DOUBLE
+        componentsPerAttribute: 3,
+        values: new Float64Array(vertices),
+      }),
+      // 纹理坐标，告诉渲染器如何映射纹理
+      st: new Cesium.GeometryAttribute({
+        componentDatatype: Cesium.ComponentDatatype.FLOAT,
+        componentsPerAttribute: 2,
+        values: new Float32Array(uvs),
+      }),
+    },
+    // 三角点坐标
+    indices: new Uint32Array(indices),
+    primitiveType: Cesium.PrimitiveType.TRIANGLES,
+    boundingSphere: Cesium.BoundingSphere.fromVertices(new Float64Array(vertices)),
+  });
+
+  const originalPositions = geometry.attributes.position.values;
+  // 检查 position 属性
+  if (!geometry.attributes.position) {
+    throw new Error("position attribute missing in geometry");
+  }
+
+  // 生成 position3DHigh / position3DLow
+  geometry = Cesium.GeometryPipeline.encodeAttribute(
+    geometry,
+    "position",
+    "position3DHigh",
+    "position3DLow"
+  );
+  geometry.attributes.position = new Cesium.GeometryAttribute({
+    componentDatatype: Cesium.ComponentDatatype.DOUBLE,
+    componentsPerAttribute: 3,
+    values: originalPositions,
+  });
+  // 材质
+  const material = new Cesium.Material({
+    fabric: {
+      type: "Color",
+      uniforms: {
+        color: Cesium.Color.WHITE.withAlpha(0.8) // 这里换成你需要的颜色
+      }
+    }
+  });
+
+  // 创建 Primitive
+  const terrainPrimitive = new Cesium.Primitive({
+    geometryInstances: new Cesium.GeometryInstance({
+      geometry: geometry,
+    }),
+    appearance: new Cesium.MaterialAppearance({
+      material: material,
+      vertexFormat: Cesium.VertexFormat.ALL,
+    }),
+    asynchronous: false,
+  });
+
+  viewer.scene.primitives.add(terrainPrimitive);
+
+  // 添加流体
+  const fluid = new FluidDemo(viewer, width, height, lonLatBounds = { lonMin: 120, lonMax: 123.5, latMin: 30, latMax: 32.5 });
 }
 const viewer = new Cesium.Viewer("map",
   {
