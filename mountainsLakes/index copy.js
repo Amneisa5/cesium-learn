@@ -1018,10 +1018,10 @@ class FluidDemo {
     // });
 
     this._viewer.scene.primitives.add(Buffer_A);
-    this._viewer.scene.primitives.add(Buffer_B);
-    this._viewer.scene.primitives.add(Buffer_C);
-    this._viewer.scene.primitives.add(Buffer_D);
-    this._viewer.scene.primitives.add(fluidCommand);
+    // this._viewer.scene.primitives.add(Buffer_B);
+    // this._viewer.scene.primitives.add(Buffer_C);
+    // this._viewer.scene.primitives.add(Buffer_D);
+    // this._viewer.scene.primitives.add(fluidCommand);
   }
 };
 // viewer.camera.lookAt(boxCenter, new Cesium.Cartesian3(0.0, -10000.0, 5000.0));
