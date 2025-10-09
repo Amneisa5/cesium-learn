@@ -590,13 +590,11 @@ uniform vec2   iResolution;
 uniform float   iTime;
 uniform int   iFrame;
 uniform float seaLevelHeight; // 海平面对应的归一化高度值
-uniform float waterRiseProgress; // 水位上升进度 (0.0 到 1.0)
 in vec3 vo;
 in vec3 vd;
 in vec2 v_st;
 const vec3 light = vec3(0.,4.,2.);
 const float boxHeight = 0.45;
-const float waterRiseDuration = 5.0; // 水位上升动画持续时间（秒）
 vec2 getHeight(in vec3 p)
 {
  // Cesium BoxGeometry 的坐标范围是 [-0.5, 0.5]
@@ -617,9 +615,8 @@ vec2 getHeight(in vec3 p)
  // 如果地形低于海平面，水箱高度应该达到海平面
  float waterBoxHeight;
  if (terrainHeight < seaLevel) {
-   // 海底区域：水箱高度 = (海平面 - 地形高度) * 上升进度
-   float fullWaterHeight = seaLevel - terrainHeight;
-   waterBoxHeight = fullWaterHeight * waterRiseProgress; // 根据动画进度调整水位
+   // 海底区域：水箱高度 = 海平面 - 地形高度
+   waterBoxHeight = seaLevel - terrainHeight;
  } else {
    // 陆地：没有水箱
    waterBoxHeight = 0.0;
@@ -783,16 +780,8 @@ vec3 Render(in vec3 ro, in vec3 rd) {
       float waterBoxHeight = currentHeight.y - currentHeight.x;
       
       if (waterBoxHeight > 0.01) {
-        // 在水箱内部，添加透明的水体效果
-        // 水体透明度随动画进度变化：开始时更透明（0.15），结束时稍明显（0.35）
-        float waterTransparency = 0.15 + 0.20 * waterRiseProgress;
-        tc = mix(tc, waterColor, waterTransparency); // 混合地形颜色和水体颜色
-        
-        // 添加轻微的水波效果，强度也随动画进度增加
-        float waveStrength = waterRiseProgress * 0.5 + 0.5; // 0.5 到 1.0
-        float wave = sin((ro + rd * wt).x * 10.0 + iTime * 2.0) * 0.02 * waveStrength;
-        wave += sin((ro + rd * wt).z * 8.0 + iTime * 1.5) * 0.015 * waveStrength;
-        tc += wave * vec3(0.05, 0.1, 0.15);
+        // 在水箱内部，显示水体颜色
+        tc = waterColor;
       } else {
         // 在水箱外部，显示地形颜色
         tc = applyFog( tc, vec3(0, 0, 0.4), dist * 15.0);
@@ -849,11 +838,6 @@ class FluidDemo {
     this._textureData = textureData;
 
     this._resolution = new Cesium.Cartesian2(this._textureWidth, this._textureHeight);
-
-    // 水位上升动画相关
-    this._waterRiseProgress = 0.0; // 初始水位为0
-    this._animationStartTime = Date.now(); // 记录动画开始时间
-    this._waterRiseDuration = 5000; // 5秒动画时长（毫秒）
 
     this.initShaderToy();
   }
@@ -1140,9 +1124,6 @@ class FluidDemo {
         seaLevelHeight: () => {
           return this._seaLevelNormalized;
         },
-        waterRiseProgress: () => {
-          return this._waterRiseProgress;
-        },
         iChannel0: () => {
           return texC;
         },
@@ -1190,19 +1171,6 @@ class FluidDemo {
       const now = performance.now();
       time = now / 1000;
       frame += 0.02;
-
-      // 更新水位上升动画进度
-      const elapsedTime = Date.now() - this._animationStartTime;
-      if (elapsedTime < this._waterRiseDuration) {
-        // 使用缓动函数让动画更自然（easeInOutCubic）
-        let progress = elapsedTime / this._waterRiseDuration;
-        progress = progress < 0.5
-          ? 4 * progress * progress * progress
-          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-        this._waterRiseProgress = progress;
-      } else {
-        this._waterRiseProgress = 1.0; // 动画结束，水位达到最大值
-      }
     });
 
     this._viewer.scene.primitives.add(Buffer_A);
@@ -1210,13 +1178,6 @@ class FluidDemo {
     this._viewer.scene.primitives.add(Buffer_C);
     this._viewer.scene.primitives.add(Buffer_D);
     this._viewer.scene.primitives.add(fluidCommand);
-  }
-
-  // 重置水位上升动画
-  resetWaterAnimation () {
-    this._waterRiseProgress = 0.0;
-    this._animationStartTime = Date.now();
-    console.log('水位上升动画已重置');
   }
 
   // 调试方法：将TIF纹理输出为图片
@@ -1525,10 +1486,6 @@ const readGeoTif = async () => {
   console.log("TIF尺寸:", tifWidth, "x", tifHeight)
   // 添加流体系统，使用TIF真实尺寸
   const fluid = new FluidDemo(viewer, tifWidth, tifHeight, textureData, { lonMin: 120, lonMax: 123.5, latMin: 30, latMax: 32.5 });
-
-  // 将 fluid 实例暴露到全局，方便控制台调用
-  window.fluidDemo = fluid;
-  console.log('水位上升动画已启动（5秒）。在控制台输入 fluidDemo.resetWaterAnimation() 可重新播放动画');
 }
 const viewer = new Cesium.Viewer("map",
   {

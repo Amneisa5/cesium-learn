@@ -1213,7 +1213,7 @@ class FluidDemo {
   }
 
   // 重置水位上升动画
-  resetWaterAnimation () {
+  resetWaterAnimation() {
     this._waterRiseProgress = 0.0;
     this._animationStartTime = Date.now();
     console.log('水位上升动画已重置');
@@ -1525,10 +1525,6 @@ const readGeoTif = async () => {
   console.log("TIF尺寸:", tifWidth, "x", tifHeight)
   // 添加流体系统，使用TIF真实尺寸
   const fluid = new FluidDemo(viewer, tifWidth, tifHeight, textureData, { lonMin: 120, lonMax: 123.5, latMin: 30, latMax: 32.5 });
-
-  // 将 fluid 实例暴露到全局，方便控制台调用
-  window.fluidDemo = fluid;
-  console.log('水位上升动画已启动（5秒）。在控制台输入 fluidDemo.resetWaterAnimation() 可重新播放动画');
 }
 const viewer = new Cesium.Viewer("map",
   {
