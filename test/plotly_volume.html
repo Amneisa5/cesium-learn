@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plotly 3D 体积渲染 - 体积云效果</title>
+  <script src="plotly-3.1.1.min.js" charset="utf-8"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+    }
+
+    #controls {
+      margin-bottom: 15px;
+      padding: 15px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    #controls label {
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    #status {
+      margin-bottom: 10px;
+      padding: 15px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      font-size: 14px;
+      color: #333;
+    }
+
+    #myDiv {
+      width: 100%;
+      height: 700px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    button {
+      padding: 8px 16px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    input,
+    select {
+      padding: 5px;
+      margin: 0 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="controls">
+    <label>
+      渲染方式:
+      <select id="renderType">
+        <option value="volume">体积渲染（Volume）</option>
+        <option value="isosurface">等值面（Isosurface）</option>
+        <option value="multi-isosurface">多层等值面</option>
+      </select>
+    </label>
+    <label>
+      数据降采样:
+      <input type="number" id="downsample" value="2" min="1" max="5" step="1">
+      (1=原始分辨率，值越大速度越快但精度越低)
+    </label>
+    <button onclick="loadData()">加载并渲染</button>
+  </div>
+  <div id="status">点击"加载并渲染"按钮开始</div>
+  <div id="myDiv"></div>
+
+  <script>
+    console.log('体积渲染脚本初始化完成');
+
+    const statusDiv = document.getElementById('status');
+
+    function updateStatus (message) {
+      statusDiv.textContent = message;
+      console.log(message);
+    }
+
+    function loadData () {
+      const renderType = document.getElementById('renderType').value;
+      const downsample = parseInt(document.getElementById('downsample').value) || 2;
+
+      updateStatus(`开始加载数据... (渲染方式: ${renderType}, 降采样: ${downsample}x)`);
+
+      let arr = [
+        fetch("https://minio.bicntech.com:9443/weather/json/CJE_daily_oxygen_date20200101_N01.json")
+          .then((res) => {
+            updateStatus('氧气数据加载成功，正在解析...');
+            return res.json();
+          }),
+        fetch("https://minio.bicntech.com:9443/weather/json/ECS_bathy.json")
+          .then((res) => {
+            updateStatus('地形数据加载成功，正在解析...');
+            return res.json();
+          }),
+      ];
+
+      Promise.all(arr).then((res) => {
+        updateStatus('数据解析完成，开始构建3D体积数据...');
+
+        let r1 = res[0];
+        let r2 = res[1];
+
+        let origX = r1.oxygen.length;
+        let origY = r1.oxygen[0].length;
+        let origZ = 75;
+
+        // 降采样后的维度
+        let x = Math.floor(origX / downsample);
+        let y = Math.floor(origY / downsample);
+        let z = Math.floor(origZ / downsample);
+
+        console.log(`原始维度: ${origX}x${origY}x${origZ} = ${origX * origY * origZ} 点`);
+        console.log(`降采样后维度: ${x}x${y}x${z} = ${x * y * z} 点`);
+        updateStatus(`构建 ${x}x${y}x${z} 的体积数据...`);
+
+        let mask = r2.mask;
+        let he = r2.he;
+        let oxygen = r1.oxygen;
+
+        // 构建3D体积数据
+        let volumeData = [];
+
+        for (let i = 0; i < z; i++) {
+          let slice = [];
+          for (let j = 0; j < y; j++) {
+            let row = [];
+            for (let k = 0; k < x; k++) {
+              // 从降采样的坐标映射回原始坐标
+              let origK = k * downsample;
+              let origJ = j * downsample;
+              let origI = i * downsample;
+
+              if (origK >= origX || origJ >= origY) {
+                row.push(0);
+                continue;
+              }
+
+              if (oxygen[origK][origJ] == "NaN" || mask[origK][origJ] == "NaN") {
+                row.push(0); // 无效数据设为0
+              } else {
+                let heValue = 1500 - he[origK][origJ];
+                let depth = origI * 20;
+
+                if (depth <= heValue) {
+                  // 有效深度范围内，使用氧气值
+                  let oxygenValue = parseFloat(oxygen[origK][origJ]);
+                  row.push(isNaN(oxygenValue) ? 0 : oxygenValue);
+                } else {
+                  // 超出有效深度，设为0
+                  row.push(0);
+                }
+              }
+            }
+            slice.push(row);
+          }
+          volumeData.push(slice);
+
+          if (i % 10 === 0) {
+            updateStatus(`构建体积数据: ${Math.round((i / z) * 100)}%`);
+          }
+        }
+
+        console.log('体积数据构建完成，开始渲染...');
+        updateStatus('体积数据构建完成，开始渲染...');
+
+        let traces = [];
+        let layout;
+
+        if (renderType === 'volume') {
+          // 体积渲染
+          traces.push({
+            type: 'volume',
+            x: Array.from({ length: x }, (_, i) => i),
+            y: Array.from({ length: y }, (_, i) => i),
+            z: Array.from({ length: z }, (_, i) => i),
+            value: volumeData.flat(2),
+            isomin: 0.1,
+            isomax: 10,
+            opacity: 0.15,
+            surface: {
+              count: 20,
+              fill: 0.8,
+              pattern: 'all'
+            },
+            colorscale: [
+              [0, 'rgb(0,0,131)'],
+              [0.25, 'rgb(0,60,170)'],
+              [0.5, 'rgb(5,255,255)'],
+              [0.75, 'rgb(255,255,0)'],
+              [1, 'rgb(255,0,0)']
+            ],
+            colorbar: {
+              title: '氧气浓度',
+              thickness: 20
+            },
+            caps: {
+              x: { show: false },
+              y: { show: false },
+              z: { show: false }
+            }
+          });
+
+          layout = {
+            title: '海洋氧气浓度 - 体积渲染',
+            scene: {
+              xaxis: { title: 'X' },
+              yaxis: { title: 'Y' },
+              zaxis: { title: '深度' }
+            },
+            margin: { l: 0, r: 0, b: 0, t: 40 }
+          };
+
+        } else if (renderType === 'isosurface') {
+          // 单一等值面
+          traces.push({
+            type: 'isosurface',
+            x: Array.from({ length: x }, (_, i) => i),
+            y: Array.from({ length: y }, (_, i) => i),
+            z: Array.from({ length: z }, (_, i) => i),
+            value: volumeData.flat(2),
+            isomin: 2,
+            isomax: 8,
+            surface: {
+              count: 5,
+              fill: 0.8
+            },
+            colorscale: [
+              [0, 'rgb(0,0,131)'],
+              [0.25, 'rgb(0,60,170)'],
+              [0.5, 'rgb(5,255,255)'],
+              [0.75, 'rgb(255,255,0)'],
+              [1, 'rgb(255,0,0)']
+            ],
+            colorbar: {
+              title: '氧气浓度',
+              thickness: 20
+            },
+            caps: {
+              x: { show: false },
+              y: { show: false },
+              z: { show: false }
+            }
+          });
+
+          layout = {
+            title: '海洋氧气浓度 - 等值面',
+            scene: {
+              xaxis: { title: 'X' },
+              yaxis: { title: 'Y' },
+              zaxis: { title: '深度' }
+            },
+            margin: { l: 0, r: 0, b: 0, t: 40 }
+          };
+
+        } else {
+          // 多层等值面
+          const levels = [2, 4, 6, 8];
+          levels.forEach((level, idx) => {
+            traces.push({
+              type: 'isosurface',
+              x: Array.from({ length: x }, (_, i) => i),
+              y: Array.from({ length: y }, (_, i) => i),
+              z: Array.from({ length: z }, (_, i) => i),
+              value: volumeData.flat(2),
+              isomin: level - 0.5,
+              isomax: level + 0.5,
+              opacity: 0.3,
+              surface: {
+                count: 1
+              },
+              colorscale: [
+                [0, `rgba(${50 + idx * 50}, ${100 + idx * 30}, ${200 - idx * 40}, 0.5)`],
+                [1, `rgba(${100 + idx * 50}, ${150 + idx * 20}, ${250 - idx * 50}, 0.8)`]
+              ],
+              showscale: idx === 0,
+              colorbar: idx === 0 ? {
+                title: '氧气浓度',
+                thickness: 20
+              } : undefined,
+              caps: {
+                x: { show: false },
+                y: { show: false },
+                z: { show: false }
+              }
+            });
+          });
+
+          layout = {
+            title: '海洋氧气浓度 - 多层等值面',
+            scene: {
+              xaxis: { title: 'X' },
+              yaxis: { title: 'Y' },
+              zaxis: { title: '深度' }
+            },
+            margin: { l: 0, r: 0, b: 0, t: 40 }
+          };
+        }
+
+        console.log('开始调用 Plotly.newPlot...');
+
+        Plotly.newPlot('myDiv', traces, layout)
+          .then(() => {
+            updateStatus(`✅ 渲染完成！数据维度: ${x}x${y}x${z}`);
+            console.log('Plotly 体积渲染成功！');
+          })
+          .catch((plotError) => {
+            updateStatus(`❌ 渲染错误: ${plotError.message}`);
+            console.error('Plotly渲染错误:', plotError);
+            console.error('错误堆栈:', plotError.stack);
+          });
+
+      }).catch((error) => {
+        updateStatus(`❌ 数据加载错误: ${error.message}`);
+        console.error('数据加载错误:', error);
+      });
+    }
+  </script>
+</body>
+
+</html>

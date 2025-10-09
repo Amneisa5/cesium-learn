@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plotly 3D 体积渲染 - 调试版</title>
+  <script src="plotly-3.1.1.min.js" charset="utf-8"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+    }
+
+    #controls {
+      margin-bottom: 15px;
+      padding: 15px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    #controls label {
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    #status {
+      margin-bottom: 10px;
+      padding: 15px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      font-size: 14px;
+      color: #333;
+    }
+
+    #debug {
+      margin-bottom: 10px;
+      padding: 15px;
+      background: #fffbea;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      font-size: 12px;
+      font-family: monospace;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    #myDiv {
+      width: 100%;
+      height: 600px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    button {
+      padding: 8px 16px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    input,
+    select {
+      padding: 5px;
+      margin: 0 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="controls">
+    <label>
+      渲染方式:
+      <select id="renderType">
+        <option value="isosurface">等值面（Isosurface）</option>
+        <option value="volume">体积渲染（Volume）</option>
+        <option value="scatter">点云（用于测试）</option>
+      </select>
+    </label>
+    <label>
+      数据降采样:
+      <input type="number" id="downsample" value="4" min="1" max="10" step="1">
+      (降采样倍数，值越大越快)
+    </label>
+    <button onclick="loadData()">加载并渲染</button>
+  </div>
+  <div id="status">点击"加载并渲染"按钮开始</div>
+  <div id="debug">调试信息将显示在这里...</div>
+  <div id="myDiv"></div>
+
+  <script>
+    console.log('体积渲染脚本初始化完成');
+
+    const statusDiv = document.getElementById('status');
+    const debugDiv = document.getElementById('debug');
+
+    function updateStatus (message) {
+      statusDiv.textContent = message;
+      console.log('[状态] ' + message);
+    }
+
+    function addDebug (message) {
+      debugDiv.innerHTML += message + '<br>';
+      debugDiv.scrollTop = debugDiv.scrollHeight;
+      console.log('[调试] ' + message);
+    }
+
+    function loadData () {
+      debugDiv.innerHTML = '';
+      const renderType = document.getElementById('renderType').value;
+      const downsample = parseInt(document.getElementById('downsample').value) || 4;
+
+      updateStatus(`开始加载数据... (渲染: ${renderType}, 降采样: ${downsample}x)`);
+      addDebug(`渲染方式: ${renderType}, 降采样: ${downsample}`);
+
+      let arr = [
+        fetch("https://minio.bicntech.com:9443/weather/json/CJE_daily_oxygen_date20200101_N01.json")
+          .then((res) => {
+            updateStatus('氧气数据加载成功');
+            return res.json();
+          }),
+        fetch("https://minio.bicntech.com:9443/weather/json/ECS_bathy.json")
+          .then((res) => {
+            updateStatus('地形数据加载成功');
+            return res.json();
+          }),
+      ];
+
+      Promise.all(arr).then((res) => {
+        updateStatus('数据解析完成，开始处理...');
+
+        let r1 = res[0];
+        let r2 = res[1];
+
+        addDebug(`r1 keys: ${Object.keys(r1).join(', ')}`);
+        addDebug(`r2 keys: ${Object.keys(r2).join(', ')}`);
+
+        let origX = r1.oxygen.length;
+        let origY = r1.oxygen[0].length;
+        let origZ = 75;
+
+        addDebug(`原始维度: ${origX} x ${origY} x ${origZ}`);
+
+        // 降采样后的维度
+        let nx = Math.floor(origX / downsample);
+        let ny = Math.floor(origY / downsample);
+        let nz = Math.floor(origZ / downsample);
+
+        addDebug(`降采样后: ${nx} x ${ny} x ${nz} = ${nx * ny * nz} 点`);
+        updateStatus(`处理 ${nx}x${ny}x${nz} 数据...`);
+
+        let mask = r2.mask;
+        let he = r2.he;
+        let oxygen = r1.oxygen;
+
+        // 准备数据数组
+        let xArr = [];
+        let yArr = [];
+        let zArr = [];
+        let values = [];
+
+        let validCount = 0;
+        let minVal = Infinity;
+        let maxVal = -Infinity;
+
+        for (let i = 0; i < nz; i++) {
+          for (let j = 0; j < ny; j++) {
+            for (let k = 0; k < nx; k++) {
+              // 映射回原始坐标
+              let origK = Math.min(k * downsample, origX - 1);
+              let origJ = Math.min(j * downsample, origY - 1);
+              let origI = Math.min(i * downsample, origZ - 1);
+
+              let val = 0;
+
+              if (oxygen[origK] && oxygen[origK][origJ] != "NaN" &&
+                mask[origK] && mask[origK][origJ] != "NaN") {
+                let heValue = 1500 - he[origK][origJ];
+                let depth = origI * 20;
+
+                if (depth <= heValue) {
+                  val = parseFloat(oxygen[origK][origJ]);
+                  if (!isNaN(val) && val > 0) {
+                    validCount++;
+                    minVal = Math.min(minVal, val);
+                    maxVal = Math.max(maxVal, val);
+                  } else {
+                    val = 0;
+                  }
+                }
+              }
+
+              xArr.push(k);
+              yArr.push(j);
+              zArr.push(i);
+              values.push(val);
+            }
+          }
+
+          if (i % 5 === 0) {
+            updateStatus(`处理: ${Math.round((i / nz) * 100)}%`);
+          }
+        }
+
+        addDebug(`有效数据点: ${validCount} / ${values.length}`);
+        addDebug(`数值范围: ${minVal.toFixed(2)} ~ ${maxVal.toFixed(2)}`);
+        addDebug(`非零值数量: ${values.filter(v => v > 0).length}`);
+
+        if (validCount === 0) {
+          updateStatus('❌ 没有有效数据！');
+          addDebug('错误：没有找到有效的氧气数据');
+          return;
+        }
+
+        updateStatus('开始渲染...');
+
+        let trace;
+
+        if (renderType === 'scatter') {
+          // 点云模式 - 用于测试数据是否正确
+          let scatterX = [];
+          let scatterY = [];
+          let scatterZ = [];
+          let scatterC = [];
+
+          for (let i = 0; i < values.length; i++) {
+            if (values[i] > 0.1) {
+              scatterX.push(xArr[i]);
+              scatterY.push(yArr[i]);
+              scatterZ.push(zArr[i]);
+              scatterC.push(values[i]);
+            }
+          }
+
+          addDebug(`点云数量: ${scatterX.length}`);
+
+          trace = {
+            type: 'scatter3d',
+            mode: 'markers',
+            x: scatterX,
+            y: scatterY,
+            z: scatterZ,
+            marker: {
+              size: 3,
+              color: scatterC,
+              colorscale: 'Viridis',
+              colorbar: { title: '氧气浓度' },
+              opacity: 0.6
+            }
+          };
+
+        } else if (renderType === 'isosurface') {
+          // 等值面渲染
+          addDebug(`构建等值面，数值范围: ${minVal} - ${maxVal}`);
+
+          trace = {
+            type: 'isosurface',
+            x: xArr,
+            y: yArr,
+            z: zArr,
+            value: values,
+            isomin: minVal,
+            isomax: maxVal,
+            surface: {
+              count: 5,
+              fill: 0.9,
+              pattern: 'all'
+            },
+            opacity: 0.6,
+            colorscale: [
+              [0, 'rgb(0,0,131)'],
+              [0.25, 'rgb(0,60,170)'],
+              [0.5, 'rgb(5,255,255)'],
+              [0.75, 'rgb(255,255,0)'],
+              [1, 'rgb(255,0,0)']
+            ],
+            colorbar: {
+              title: '氧气浓度'
+            },
+            caps: {
+              x: { show: true },
+              y: { show: true },
+              z: { show: true }
+            }
+          };
+
+        } else {
+          // 体积渲染
+          addDebug(`构建体积，数值范围: ${minVal} - ${maxVal}`);
+
+          trace = {
+            type: 'volume',
+            x: xArr,
+            y: yArr,
+            z: zArr,
+            value: values,
+            isomin: minVal * 0.3,
+            isomax: maxVal * 0.9,
+            opacity: 0.1,
+            surface: {
+              count: 15,
+              fill: 0.9,
+              pattern: 'all'
+            },
+            colorscale: [
+              [0, 'rgb(0,0,131)'],
+              [0.25, 'rgb(0,60,170)'],
+              [0.5, 'rgb(5,255,255)'],
+              [0.75, 'rgb(255,255,0)'],
+              [1, 'rgb(255,0,0)']
+            ],
+            colorbar: {
+              title: '氧气浓度'
+            }
+          };
+        }
+
+        let layout = {
+          title: `海洋氧气浓度 - ${renderType} (${nx}x${ny}x${nz})`,
+          scene: {
+            xaxis: { title: 'X', range: [0, nx] },
+            yaxis: { title: 'Y', range: [0, ny] },
+            zaxis: { title: '深度', range: [0, nz] },
+            aspectmode: 'manual',
+            aspectratio: { x: 1, y: 1, z: 0.5 }
+          },
+          margin: { l: 0, r: 0, b: 0, t: 40 }
+        };
+
+        addDebug('调用 Plotly.newPlot...');
+
+        Plotly.newPlot('myDiv', [trace], layout)
+          .then(() => {
+            updateStatus(`✅ 渲染完成！`);
+            addDebug('✅ Plotly渲染成功');
+          })
+          .catch((plotError) => {
+            updateStatus(`❌ 渲染错误: ${plotError.message}`);
+            addDebug(`❌ 错误: ${plotError.message}`);
+            console.error('完整错误:', plotError);
+          });
+
+      }).catch((error) => {
+        updateStatus(`❌ 数据加载错误: ${error.message}`);
+        addDebug(`❌ 加载错误: ${error.message}`);
+        console.error('完整错误:', error);
+      });
+    }
+  </script>
+</body>
+
+</html>

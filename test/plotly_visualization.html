@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Plotly 3D 数据可视化</title>
+  <script src="plotly-3.1.1.min.js" charset="utf-8"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+    }
+    #status {
+      margin-bottom: 10px;
+      padding: 15px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      font-size: 14px;
+      color: #333;
+    }
+    #myDiv {
+      width: 100%;
+      height: 700px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+
+<body>
+  <div id="status">正在初始化...</div>
+  <div id="myDiv"></div>
+  <script>
+    console.log('脚本开始执行 - 版本 2.0');
+    
+    const statusDiv = document.getElementById('status');
+    
+    function updateStatus(message) {
+      statusDiv.textContent = message;
+      console.log(message);
+    }
+
+    updateStatus('开始加载数据...');
+
+    let arr = [
+      fetch("https://minio.bicntech.com:9443/weather/json/CJE_daily_oxygen_date20200101_N01.json")
+        .then((res) => {
+          updateStatus('氧气数据加载成功，正在解析...');
+          return res.json();
+        }),
+      fetch("https://minio.bicntech.com:9443/weather/json/ECS_bathy.json")
+        .then((res) => {
+          updateStatus('地形数据加载成功，正在解析...');
+          return res.json();
+        }),
+    ];
+
+    Promise.all(arr).then((res) => {
+      updateStatus('数据解析完成，开始处理...');
+      
+      let r1 = res[0];
+      let r2 = res[1];
+      
+      console.log('数据对象 r1:', r1);
+      console.log('数据对象 r2:', r2);
+      
+      let x = r1.oxygen.length;
+      let y = r1.oxygen[0].length;
+      let z = 75;
+      
+      console.log(`数据维度: x=${x}, y=${y}, z=${z}`);
+      console.log(`总数据点数: ${x * y * z}`);
+      updateStatus(`数据维度: x=${x}, y=${y}, z=${z}`);
+      
+      let mask = r2.mask;
+      let he = r2.he;
+      let oxygen = r1.oxygen;
+
+      // 准备Plotly数据点
+      let xData = [];
+      let yData = [];
+      let zData = [];
+      let oxygenValues = [];
+
+      updateStatus('正在处理数据点...');
+      
+      let validCount = 0;
+      let invalidCount = 0;
+
+      for (let i = 0; i < z; i++) {
+        for (let j = 0; j < y; j++) {
+          for (let k = 0; k < x; k++) {
+            if (oxygen[k][j] != "NaN" && mask[k][j] != "NaN") {
+              let heValue = 1500 - he[k][j];
+              let depth = i * 20;
+
+              // 只渲染有效深度范围内的数据
+              if (depth <= heValue) {
+                xData.push(k);
+                yData.push(j);
+                zData.push(i);
+                oxygenValues.push(parseFloat(oxygen[k][j]));
+                validCount++;
+              }
+            } else {
+              invalidCount++;
+            }
+          }
+        }
+        
+        // 每处理10层更新一次进度
+        if (i % 10 === 0) {
+          updateStatus(`处理进度: ${Math.round((i / z) * 100)}% (已收集 ${validCount} 个点)`);
+        }
+      }
+
+      console.log(`有效数据点: ${validCount}`);
+      console.log(`无效数据点: ${invalidCount}`);
+      console.log(`xData 长度: ${xData.length}`);
+      console.log(`yData 长度: ${yData.length}`);
+      console.log(`zData 长度: ${zData.length}`);
+      console.log(`oxygenValues 长度: ${oxygenValues.length}`);
+      
+      updateStatus(`收集了 ${validCount} 个有效数据点，开始渲染...`);
+
+      // 创建Plotly 3D散点图
+      let trace = {
+        x: xData,
+        y: yData,
+        z: zData,
+        mode: 'markers',
+        marker: {
+          size: 2,
+          color: oxygenValues,
+          colorscale: [
+            [0, 'rgb(0,0,131)'],      // 深蓝色 - 低氧
+            [0.25, 'rgb(0,60,170)'],
+            [0.5, 'rgb(5,255,255)'],   // 青色
+            [0.75, 'rgb(255,255,0)'],  // 黄色
+            [1, 'rgb(255,0,0)']        // 红色 - 高氧
+          ],
+          colorbar: {
+            title: '氧气浓度',
+            thickness: 20,
+            len: 0.7
+          },
+          opacity: 0.6
+        },
+        type: 'scatter3d',
+        name: '氧气分布'
+      };
+
+      let layout = {
+        title: '海洋氧气浓度三维分布',
+        scene: {
+          xaxis: { title: 'X坐标' },
+          yaxis: { title: 'Y坐标' },
+          zaxis: { title: '深度层级' }
+        },
+        margin: {
+          l: 0,
+          r: 0,
+          b: 0,
+          t: 40
+        }
+      };
+
+      console.log('开始调用 Plotly.newPlot...');
+      
+      Plotly.newPlot('myDiv', [trace], layout)
+        .then(() => {
+          updateStatus(`✅ 渲染完成！共显示 ${xData.length} 个数据点`);
+          console.log('Plotly 渲染成功！');
+        })
+        .catch((plotError) => {
+          updateStatus(`❌ 渲染错误: ${plotError.message}`);
+          console.error('Plotly渲染错误:', plotError);
+        });
+
+    }).catch((error) => {
+      updateStatus(`❌ 数据加载错误: ${error.message}`);
+      console.error('数据加载错误:', error);
+      console.error('完整错误对象:', error);
+    });
+  </script>
+</body>
+
+</html>
+

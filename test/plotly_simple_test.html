@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plotly 简单测试</title>
+  <script src="plotly-3.1.1.min.js" charset="utf-8"></script>
+  <style>
+    body {
+      margin: 20px;
+      font-family: Arial;
+    }
+
+    #myDiv {
+      width: 100%;
+      height: 600px;
+      border: 1px solid #ddd;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Plotly 功能测试</h2>
+  <div>
+    <button onclick="testScatter()">测试1：简单散点图</button>
+    <button onclick="testIsosurface()">测试2：等值面（球体）</button>
+    <button onclick="testVolume()">测试3：体积渲染</button>
+    <button onclick="loadRealData()">测试4：加载真实数据</button>
+  </div>
+  <div id="status" style="margin: 10px; padding: 10px; background: #f0f0f0;">等待测试...</div>
+  <div id="myDiv"></div>
+
+  <script>
+    function testScatter () {
+      document.getElementById('status').textContent = '测试散点图...';
+
+      var trace = {
+        x: [1, 2, 3, 4, 5],
+        y: [1, 6, 3, 6, 1],
+        z: [1, 1, 6, 1, 5],
+        mode: 'markers',
+        marker: {
+          size: 12,
+          color: [1, 2, 3, 4, 5],
+          colorscale: 'Viridis'
+        },
+        type: 'scatter3d'
+      };
+
+      Plotly.newPlot('myDiv', [trace], { title: '测试散点图' })
+        .then(() => {
+          document.getElementById('status').textContent = '✅ 散点图测试成功！';
+        })
+        .catch(err => {
+          document.getElementById('status').textContent = '❌ 散点图失败: ' + err.message;
+        });
+    }
+
+    function testIsosurface () {
+      document.getElementById('status').textContent = '测试等值面...';
+
+      // 创建一个球体数据
+      var size = 20;
+      var x = [], y = [], z = [], values = [];
+
+      for (var i = 0; i < size; i++) {
+        for (var j = 0; j < size; j++) {
+          for (var k = 0; k < size; k++) {
+            x.push(i);
+            y.push(j);
+            z.push(k);
+
+            var dx = i - size / 2;
+            var dy = j - size / 2;
+            var dz = k - size / 2;
+            var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            values.push(10 - dist);
+          }
+        }
+      }
+
+      var trace = {
+        type: 'isosurface',
+        x: x,
+        y: y,
+        z: z,
+        value: values,
+        isomin: 0,
+        isomax: 8,
+        surface: { count: 3 },
+        colorscale: 'Jet'
+      };
+
+      Plotly.newPlot('myDiv', [trace], { title: '测试等值面（球体）' })
+        .then(() => {
+          document.getElementById('status').textContent = '✅ 等值面测试成功！';
+        })
+        .catch(err => {
+          document.getElementById('status').textContent = '❌ 等值面失败: ' + err.message;
+        });
+    }
+
+    function testVolume () {
+      document.getElementById('status').textContent = '测试体积渲染...';
+
+      var size = 15;
+      var x = [], y = [], z = [], values = [];
+
+      for (var i = 0; i < size; i++) {
+        for (var j = 0; j < size; j++) {
+          for (var k = 0; k < size; k++) {
+            x.push(i);
+            y.push(j);
+            z.push(k);
+
+            var val = Math.sin(i / 3) * Math.cos(j / 3) * Math.sin(k / 3) * 5 + 5;
+            values.push(val);
+          }
+        }
+      }
+
+      var trace = {
+        type: 'volume',
+        x: x,
+        y: y,
+        z: z,
+        value: values,
+        isomin: 2,
+        isomax: 8,
+        opacity: 0.15,
+        surface: { count: 17 },
+        colorscale: 'Viridis'
+      };
+
+      Plotly.newPlot('myDiv', [trace], { title: '测试体积渲染' })
+        .then(() => {
+          document.getElementById('status').textContent = '✅ 体积渲染测试成功！';
+        })
+        .catch(err => {
+          document.getElementById('status').textContent = '❌ 体积渲染失败: ' + err.message;
+        });
+    }
+
+    function loadRealData () {
+      document.getElementById('status').textContent = '加载真实数据...';
+
+      Promise.all([
+        fetch("https://minio.bicntech.com:9443/weather/json/CJE_daily_oxygen_date20200101_N01.json").then(r => r.json()),
+        fetch("https://minio.bicntech.com:9443/weather/json/ECS_bathy.json").then(r => r.json())
+      ]).then(([r1, r2]) => {
+        document.getElementById('status').textContent = '数据加载成功！处理中...';
+        console.log('r1:', r1);
+        console.log('r2:', r2);
+
+        var origX = r1.oxygen.length;
+        var origY = r1.oxygen[0].length;
+        var downsample = 5;
+
+        var nx = Math.floor(origX / downsample);
+        var ny = Math.floor(origY / downsample);
+        var nz = 15; // 只取前15层
+
+        document.getElementById('status').textContent = `处理 ${nx}x${ny}x${nz} 数据...`;
+
+        var x = [], y = [], z = [], values = [];
+        var count = 0;
+
+        for (var i = 0; i < nz; i++) {
+          for (var j = 0; j < ny; j++) {
+            for (var k = 0; k < nx; k++) {
+              var ok = k * downsample;
+              var oj = j * downsample;
+
+              x.push(k);
+              y.push(j);
+              z.push(i);
+
+              if (r1.oxygen[ok] && r1.oxygen[ok][oj] != "NaN") {
+                var val = parseFloat(r1.oxygen[ok][oj]);
+                values.push(isNaN(val) ? 0 : val);
+                if (val > 0) count++;
+              } else {
+                values.push(0);
+              }
+            }
+          }
+        }
+
+        console.log('有效值:', count, '/', values.length);
+        document.getElementById('status').textContent = `渲染 ${count} 个有效数据点...`;
+
+        var trace = {
+          type: 'isosurface',
+          x: x,
+          y: y,
+          z: z,
+          value: values,
+          isomin: 1,
+          isomax: 10,
+          surface: { count: 5 },
+          colorscale: 'Jet',
+          colorbar: { title: '氧气' }
+        };
+
+        Plotly.newPlot('myDiv', [trace], {
+          title: '真实海洋数据',
+          scene: {
+            xaxis: { title: 'X' },
+            yaxis: { title: 'Y' },
+            zaxis: { title: 'Z' }
+          }
+        }).then(() => {
+          document.getElementById('status').textContent = '✅ 真实数据渲染成功！';
+        }).catch(err => {
+          document.getElementById('status').textContent = '❌ 渲染失败: ' + err.message;
+          console.error(err);
+        });
+
+      }).catch(err => {
+        document.getElementById('status').textContent = '❌ 数据加载失败: ' + err.message;
+        console.error(err);
+      });
+    }
+  </script>
+</body>
+
+</html>
