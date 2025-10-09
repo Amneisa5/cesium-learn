@@ -676,12 +676,15 @@ vec3 terrainColor(in vec3 p, in vec3 n, out float spec)
  vec3 t = texture(iChannel1, p.xz * 5.0).xyz;
  ramp = mix(ramp, ramp * t, 0.2);
  
- // 海底区域：简单的水体效果
+ // 海底区域：保持地形特征的水体效果
  if (isUnderwater) {
-   // 简单的水体颜色混合
-   vec3 waterTint = vec3(0.0, 0.3, 0.6); // 统一的蓝色
-   ramp = mix(ramp, waterTint, 0.4); // 适度的水色混合
-   spec = mix(spec, 0.6, 0.3); // 轻微的水反射
+   // 轻微的水体色调混合，保持地形特征
+   vec3 waterTint = vec3(0.0, 0.15, 0.3); // 更淡的水体色调
+   ramp = mix(ramp, waterTint, 0.2); // 减少水色混合强度，保持地形特征
+   spec = mix(spec, 0.4, 0.2); // 轻微的水反射
+   
+   // 增强地形对比度，让海底地形更明显
+   ramp = mix(ramp, ramp * 1.2, 0.3); // 提高对比度
  }
  
  return ramp;
@@ -780,8 +783,19 @@ vec3 Render(in vec3 ro, in vec3 rd) {
       float waterBoxHeight = currentHeight.y - currentHeight.x;
       
       if (waterBoxHeight > 0.01) {
-        // 在水箱内部，显示水体颜色
-        tc = waterColor;
+        // 在水箱内部，混合水体颜色和地形颜色
+        float transparency = 0.5; // 水体透明度（0.0=完全透明，1.0=完全不透明）
+        
+        // 保持地形颜色，但添加水体色调
+        vec3 waterTint = vec3(0.0, 0.2, 0.4); // 水体色调
+        vec3 mixedColor = mix(tc, waterTint, 0.25); // 25%的水体色调混合
+        
+        // 添加透明度效果，让海底地形透过水体显示
+        tc = mix(tc, mixedColor, transparency);
+        
+        // 添加轻微的水面反射效果
+        float reflection = 0.05;
+        tc += reflection * vec3(0.1, 0.2, 0.3);
       } else {
         // 在水箱外部，显示地形颜色
         tc = applyFog( tc, vec3(0, 0, 0.4), dist * 15.0);
@@ -1392,7 +1406,7 @@ const readGeoTif = async () => {
     console.log("所有数据都在海平面以下，以最高点为基准");
   } else {
     // 数据跨越海平面，使用海平面为基准
-    seaLevel = 15;
+    seaLevel = 12;
     const maxHeightAboveSea = maxHeight - seaLevel;
     const maxDepthBelowSea = seaLevel - minHeight;
     maxRange = Math.max(maxHeightAboveSea, maxDepthBelowSea);

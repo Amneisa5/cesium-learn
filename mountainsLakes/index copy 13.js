@@ -602,31 +602,14 @@ vec2 getHeight(in vec3 p)
  vec2 uv = (p.xz + 0.5);
  // 确保UV坐标在有效范围内
  uv = clamp(uv, 0.0, 1.0);
- vec2 h = texture(iChannel0, uv).xy;  // 使用 iChannel0 (流体纹理)
+  vec2 h = texture(iChannel1, uv).xy;
  
  // h.x 是地形高度，h.y 是水位
+ // 现在只返回地形高度，水效果通过其他方式渲染
  float terrainHeight = h.x;
- float waterLevel = h.y;
  
- // 对于海底区域，创建立体水箱效果
- // 海平面在归一化坐标系中的位置是0.5
- float seaLevel = 0.5;
- 
- // 如果地形低于海平面，水箱高度应该达到海平面
- float waterBoxHeight;
- if (terrainHeight < seaLevel) {
-   // 海底区域：水箱高度 = 海平面 - 地形高度
-   waterBoxHeight = seaLevel - terrainHeight;
- } else {
-   // 陆地：没有水箱
-   waterBoxHeight = 0.0;
- }
- 
- // 总高度 = 地形高度 + 水箱高度
- float totalHeight = terrainHeight + waterBoxHeight;
- 
- // 几何体使用总高度来创建立体水箱效果
- return vec2(terrainHeight, totalHeight) - boxHeight;
+ // 完全禁用水位，只使用地形高度
+ return vec2(terrainHeight, terrainHeight) - boxHeight;
 }
 
 vec3 getNormal(in vec3 p, int comp)
@@ -646,12 +629,12 @@ vec3 terrainColor(in vec3 p, in vec3 n, out float spec)
  vec2 h = getHeight(p);
  float nh = h.x; // 归一化高度 (0-1)
  
- // 检查是否为海底区域（使用相对高度）
+ // 检查是否为海底区域（使用地形高度）
  vec2 uv = (p.xz + 0.5);
  uv = clamp(uv, 0.0, 1.0);
- vec4 heightData = texture(iChannel0, uv);
- float relativeHeight = heightData.b; // 相对海平面的高度
- bool isUnderwater = relativeHeight < 0.5; // 0.5表示海平面
+ vec4 heightData = texture(iChannel1, uv);
+ float terrainHeight = heightData.r; // 地形高度
+ bool isUnderwater = terrainHeight < seaLevelHeight; // 使用传入的海平面高度
  
  // 始终计算地形颜色，保持地形特征
  vec3 c1 = vec3(0.90, 0.85, 0.70); // 低海拔沙色
@@ -676,13 +659,22 @@ vec3 terrainColor(in vec3 p, in vec3 n, out float spec)
  vec3 t = texture(iChannel1, p.xz * 5.0).xyz;
  ramp = mix(ramp, ramp * t, 0.2);
  
- // 海底区域：简单的水体效果
- if (isUnderwater) {
-   // 简单的水体颜色混合
-   vec3 waterTint = vec3(0.0, 0.3, 0.6); // 统一的蓝色
-   ramp = mix(ramp, waterTint, 0.4); // 适度的水色混合
-   spec = mix(spec, 0.6, 0.3); // 轻微的水反射
- }
+ // 完全禁用水色混合
+ // if (isUnderwater) {
+ //   // 调试：海底区域
+ //   ramp = mix(ramp, vec3(0.0, 1.0, 0.0), 0.5); // 海底：绿色
+ //   
+ //   float depth = seaLevelHeight - terrainHeight; // 深度
+ //   vec3 waterTint = mix(vec3(0.0, 0.2, 0.4), vec3(0.0, 0.4, 0.8), smoothstep(0.0, 0.5, depth));
+ //   ramp = mix(ramp, waterTint, 0.15); // 进一步减少水色混合到15%
+ //   spec = mix(spec, 0.8, 0.2); // 减少水反射
+ //   
+ //   // 增强地形对比度，让地形特征更明显
+ //   ramp = mix(ramp, ramp * 1.3, 0.6); // 进一步提高对比度
+ // } else {
+ //   // 调试：陆地区域
+ //   ramp = mix(ramp, vec3(1.0, 0.0, 0.0), 0.5); // 陆地：红色
+ // }
  
  return ramp;
 }
@@ -741,61 +733,54 @@ vec3 Render(in vec3 ro, in vec3 rd) {
    float wt = ret.x;
    h = getHeight(pi);
    vec3 waterNormal;
-   if(pi.y < h.y) { // 使用总高度（包含水箱）
+   if(pi.y < h.x) { // 使用地形高度而不是水位
      waterNormal = n;
    }
    else {
      for (int i = 0; i < 80; i++) {
        vec3 p = ro + rd * wt;
-       float h = p.y - getHeight(p).y; // 使用总高度（包含水箱）
+       float h = p.y - getHeight(p).x; // 使用地形高度而不是水位
        if (h < 0.0002 || wt > min(tt, ret.y))
        break;
        wt += h * 0.4;
      }
-     waterNormal = getNormal(ro + rd * wt, 1); // 使用总高度（包含水箱）
+     waterNormal = getNormal(ro + rd * wt, 0); // 使用地形高度而不是水位
    }
-  // 检查是否为海底区域
-  vec4 heightData = texture(iChannel0, (ro + rd * wt).xz + 0.5);
-  float relativeHeight = heightData.b;
-  bool isUnderwater = relativeHeight < 0.5;
+  // 检查是否为海底区域，只在海底区域渲染水效果
+  vec3 p = ro + rd * wt;
+  vec2 uv = (p.xz + 0.5);
+  uv = clamp(uv, 0.0, 1.0);
+  vec4 heightData = texture(iChannel1, uv);
+  float terrainHeight = heightData.r; // 使用地形高度
+  bool isUnderwater = terrainHeight < 0.5; // 海平面在归一化高度0.5位置
   
-  if(wt < ret.y) {
-    float dist = (min(tt, ret.y) - wt);
-    vec3 p = waterNormal;
-    vec3 lightDir = normalize(light - (ro + rd * wt));
+  if (isUnderwater && wt < ret.y) {
+    // 只在海底区域渲染水效果，水的高度不超过海平面
     
-    // 获取当前点的水位信息
-    vec2 currentHeight = getHeight(ro + rd * wt);
-    float terrainHeight = currentHeight.x;
-    float waterLevel = currentHeight.y - currentHeight.x; // 水位 = 总高度 - 地形高度
+     float dist = (min(tt, ret.y) - wt);
+     vec3 p = waterNormal;
+     vec3 lightDir = normalize(light - (ro + rd * wt));
     
-    if (isUnderwater) {
-      // 海底区域：立体水箱效果
-      // 简单的水体颜色
-      vec3 waterColor = vec3(0.0, 0.4, 0.8); // 蓝色水箱
+    // 计算水深，确保水不会超过海平面（0.5）
+    float waterDepth = 0.5 - terrainHeight;
+    
+    // 只在有效水深范围内渲染水效果
+    if (waterDepth > 0.0) {
+      vec3 waterColor = mix(vec3(0.0, 0.2, 0.4), vec3(0.0, 0.4, 0.8), smoothstep(0.0, 0.5, waterDepth));
+      tc = mix(tc, waterColor, 0.3); // 增加水色混合强度
       
-      // 检查是否在水箱内部
-      vec2 currentHeight = getHeight(ro + rd * wt);
-      float terrainHeight = currentHeight.x;
-      float waterBoxHeight = currentHeight.y - currentHeight.x;
+      // 添加水波效果
+      float wave = sin((ro + rd * wt).x * 10.0 + iTime * 2.0) * 0.02;
+      wave += sin((ro + rd * wt).z * 8.0 + iTime * 1.5) * 0.01;
+      tc += wave * vec3(0.02, 0.05, 0.08);
       
-      if (waterBoxHeight > 0.01) {
-        // 在水箱内部，显示水体颜色
-        tc = waterColor;
-      } else {
-        // 在水箱外部，显示地形颜色
-        tc = applyFog( tc, vec3(0, 0, 0.4), dist * 15.0);
-      }
-      
-    } else {
-      // 陆地：原有的雾效果
-      tc = applyFog( tc, vec3(0, 0, 0.4), dist * 15.0);
+      float spec = pow(max(0., dot(lightDir, reflect(rd, waterNormal))), 20.0);
+      tc += 0.5 * spec * smoothstep(0.0, 0.1, dist);
     }
-    
-    float spec = pow(max(0., dot(lightDir, reflect(rd, waterNormal))), 20.0);
-    tc += 0.5 * spec * smoothstep(0.0, 0.1, dist);
-  }else{
-    discard;
+  } else if (wt < ret.y) {
+    // 陆地区域：只应用雾效果，不渲染水
+    float dist = (min(tt, ret.y) - wt);
+    tc = applyFog( tc, vec3(0, 0, 0.4), dist * 15.0);
   }
   
    return tc;
@@ -1392,7 +1377,7 @@ const readGeoTif = async () => {
     console.log("所有数据都在海平面以下，以最高点为基准");
   } else {
     // 数据跨越海平面，使用海平面为基准
-    seaLevel = 15;
+    seaLevel = 0;
     const maxHeightAboveSea = maxHeight - seaLevel;
     const maxDepthBelowSea = seaLevel - minHeight;
     maxRange = Math.max(maxHeightAboveSea, maxDepthBelowSea);
@@ -1441,22 +1426,8 @@ const readGeoTif = async () => {
         relativeHeight = normalizedHeight;
       }
 
-      // 在海底区域（海拔0米及以下）设置初始水位
+      // 完全禁用水位数据，只使用地形高度
       let initialWater = 0;
-      if (rawHeight <= 0) {
-        // 海底区域：水位等于海平面与海底的差值
-        const waterDepth = 0 - rawHeight; // 水深 = 海平面(0) - 海底高度
-        // 将水深归一化到0-1范围，增加强度
-        initialWater = Math.min(waterDepth / 50.0, 0.5); // 增加水位强度，最大0.5
-
-        // 调试：输出一些海底区域的水位信息
-        if (y === Math.floor(tifHeight / 2) && x === Math.floor(tifWidth / 2)) {
-          console.log(`海底区域 (${x}, ${y}): 原始高度=${rawHeight.toFixed(2)}m, 水深=${waterDepth.toFixed(2)}m, 初始水位=${initialWater.toFixed(3)}`);
-        }
-      } else if (rawHeight <= 10) {
-        // 浅水区域（0-10米）：也有少量水位
-        initialWater = 0.1;
-      }
 
       const index = (y * tifWidth + x) * 4;
       textureData[index] = normalizedHeight;     // 归一化高度

@@ -1392,7 +1392,7 @@ const readGeoTif = async () => {
     console.log("所有数据都在海平面以下，以最高点为基准");
   } else {
     // 数据跨越海平面，使用海平面为基准
-    seaLevel = 15;
+    seaLevel = 0;
     const maxHeightAboveSea = maxHeight - seaLevel;
     const maxDepthBelowSea = seaLevel - minHeight;
     maxRange = Math.max(maxHeightAboveSea, maxDepthBelowSea);
