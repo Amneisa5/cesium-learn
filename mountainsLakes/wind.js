@@ -205,15 +205,99 @@ class WindParticleSystem {
   addToScene () {
     const that = this;
 
+    console.log("🔧 开始添加粒子系统到场景...");
+    console.log("  - particlesComputing:", this.particleSystem.particlesComputing);
+    console.log("  - particlesRendering:", this.particleSystem.particlesRendering);
+
+    // 添加计算primitives
     this.viewer.scene.primitives.add(this.particleSystem.particlesComputing.primitives.calculateSpeed);
+    console.log("  ✓ calculateSpeed 已添加");
+
     this.viewer.scene.primitives.add(this.particleSystem.particlesComputing.primitives.updatePosition);
+    console.log("  ✓ updatePosition 已添加");
+
     this.viewer.scene.primitives.add(this.particleSystem.particlesComputing.primitives.postProcessingPosition);
+    console.log("  ✓ postProcessingPosition 已添加");
 
+    // 添加渲染primitives
     this.viewer.scene.primitives.add(this.particleSystem.particlesRendering.primitives.segments);
-    this.viewer.scene.primitives.add(this.particleSystem.particlesRendering.primitives.trails);
-    this.viewer.scene.primitives.add(this.particleSystem.particlesRendering.primitives.screen);
+    console.log("  ✓ segments 已添加");
 
-    console.log("粒子系统已添加到场景");
+    this.viewer.scene.primitives.add(this.particleSystem.particlesRendering.primitives.trails);
+    console.log("  ✓ trails 已添加");
+
+    this.viewer.scene.primitives.add(this.particleSystem.particlesRendering.primitives.screen);
+    console.log("  ✓ screen 已添加");
+
+    console.log("✅ 粒子系统已完全添加到场景");
+
+    // 检查primitives的可见性
+    console.log("🔍 检查primitives状态:");
+    console.log("  - segments.show:", this.particleSystem.particlesRendering.primitives.segments.show);
+    console.log("  - trails.show:", this.particleSystem.particlesRendering.primitives.trails.show);
+    console.log("  - screen.show:", this.particleSystem.particlesRendering.primitives.screen.show);
+
+    // 添加一个可视化边界框来标记流场区域
+    this.addBoundingBox();
+  }
+
+  /**
+   * 添加可视化边界框
+   */
+  addBoundingBox () {
+    const { lonMin, lonMax, latMin, latMax } = this.bounds;
+    const height = this.terrainHeight;
+
+    // 创建四个角的点
+    const positions = [
+      Cesium.Cartesian3.fromDegrees(lonMin, latMin, height),
+      Cesium.Cartesian3.fromDegrees(lonMax, latMin, height),
+      Cesium.Cartesian3.fromDegrees(lonMax, latMax, height),
+      Cesium.Cartesian3.fromDegrees(lonMin, latMax, height),
+      Cesium.Cartesian3.fromDegrees(lonMin, latMin, height) // 闭合
+    ];
+
+    // 添加边界框线
+    this.boundingBoxEntity = this.viewer.entities.add({
+      name: '流场边界',
+      polyline: {
+        positions: positions,
+        width: 3,
+        material: new Cesium.PolylineOutlineMaterialProperty({
+          color: Cesium.Color.YELLOW,
+          outlineWidth: 1,
+          outlineColor: Cesium.Color.BLACK
+        }),
+        clampToGround: false
+      }
+    });
+
+    // 添加中心点标记
+    const centerLon = (lonMin + lonMax) / 2;
+    const centerLat = (latMin + latMax) / 2;
+    this.centerMarker = this.viewer.entities.add({
+      name: '流场中心',
+      position: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, height),
+      point: {
+        pixelSize: 10,
+        color: Cesium.Color.RED,
+        outlineColor: Cesium.Color.WHITE,
+        outlineWidth: 2
+      },
+      label: {
+        text: '流场中心\n高度: ' + height.toFixed(0) + 'm',
+        font: '14px sans-serif',
+        fillColor: Cesium.Color.WHITE,
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 2,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        pixelOffset: new Cesium.Cartesian2(0, -10)
+      }
+    });
+
+    console.log("📦 流场边界框已添加（黄色）");
+    console.log("📍 流场中心标记已添加（红色）");
   }
 
   /**
