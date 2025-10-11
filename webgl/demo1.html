@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <script src="./utils/jquery.js"></script>
+  <script src="./utils/index.js"></script>
+  <link rel="stylesheet" href="./css/webglcode.css" />
+</head>
+
+<body>
+  <canvas id="wl_canvas" class="canvas3D"></canvas>
+  <br />
+  <input type="checkbox" id="my_pause" checked />动画
+  <br />
+  <script src="./page/demo1/learn_webgl.js"></script>
+  <script src="./lib/learn_webgl_console_messages.js"></script>
+  <script src="./page/demo1/learn_webgl_point4.js"></script>
+  <script src="./page/demo1/learn_webgl_vector3.js"></script>
+  <script src="./page/demo1/learn_webgl_matrix.js"></script>
+  <script src="./page/demo1/learn_webgl_model_01.js"></script>
+  <script src="./page/demo1/learn_webgl_vob_model_01.js"></script>
+  <script src="./page/demo1/example_render_01.js"></script>
+  <script src="./page/demo1/example_events_01.js"></script>
+  <script>
+    var models = ["./lib/models/demo1/model_cone4.obj"];
+    var shader = ["./lib/shaders/demo1/shader05.vert", "./lib/shaders/demo1/shader05.frag"];
+    var controls = ["my_pause"];
+    var my_program = new Learn_webgl("wl_canvas", "Scene_example_render", models, shader, controls);
+
+  </script>
+</body>
+
+</html>

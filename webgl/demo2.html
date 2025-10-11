@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Cube Demo - 真正的3D效果</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
+  <script src="./utils/index.js"></script>
+  <link rel="stylesheet" href="./css/webglcode.css" />
+</head>
+
+<body>
+  <canvas id="wl_canvas" class="canvas3D"></canvas>
+  <script>
+    // Get the canvas element and WebGL context
+    const canvas = document.getElementById('wl_canvas');
+    const gl = canvas.getContext('webgl');
+
+    // 设置canvas尺寸
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+
+    // Vertex shader source code - 添加MVP矩阵变换（关键！）
+    const vsSource = `
+      attribute vec4 aVertexPosition;
+      attribute vec4 aVertexColor;
+      
+      uniform mat4 uModelViewMatrix;    // 模型视图矩阵
+      uniform mat4 uProjectionMatrix;   // 透视投影矩阵（让远处变小）
+      
+      varying lowp vec4 vColor;
+      
+      void main() {
+        // 应用3D变换：投影 × 视图 × 顶点
+        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+        vColor = aVertexColor;
+      }
+    `;
+
+    // Fragment shader source code
+    const fsSource = `
+      varying lowp vec4 vColor;
+      
+      void main() {
+        gl_FragColor = vColor;
+      }
+    `;
+
+    // Create and compile shaders
+    const vertexShader = Utils.compileShader(gl, vsSource, gl.VERTEX_SHADER);
+    const fragmentShader = Utils.compileShader(gl, fsSource, gl.FRAGMENT_SHADER);
+
+    // Create shader program and attach shaders
+    const shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+    gl.linkProgram(shaderProgram);
+
+    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+      console.error('Shader program linking error:', gl.getProgramInfoLog(shaderProgram));
+    }
+
+    // Use the shader program
+    gl.useProgram(shaderProgram);
+
+    // 定义立方体的顶点（每个面2个三角形，共6面 × 6顶点 = 36个顶点）
+    const vertices = new Float32Array([
+      // 前面（Z=+0.5，红色）
+      -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5,
+      -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5,
+
+      // 后面（Z=-0.5，绿色）
+      -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5,
+      -0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5,
+
+      // 顶面（Y=+0.5，蓝色）
+      -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+      -0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5,
+
+      // 底面（Y=-0.5，黄色）
+      -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5,
+      -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, 0.5,
+
+      // 右面（X=+0.5，紫色）
+      0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5,
+      0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5,
+
+      // 左面（X=-0.5，青色）
+      -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5,
+      -0.5, -0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5,
+    ]);
+
+    // 为每个面定义颜色
+    const colors = new Float32Array([
+      // 前面 - 红色
+      1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0,
+      1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0,
+
+      // 后面 - 绿色
+      0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+      0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+
+      // 顶面 - 蓝色
+      0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0,
+      0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0,
+
+      // 底面 - 黄色
+      1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0,
+      1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0,
+
+      // 右面 - 紫色
+      1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0,
+      1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0,
+
+      // 左面 - 青色
+      0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0,
+      0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0,
+    ]);
+
+    // 写入缓冲顶点数据
+    const vertexBuffer = Utils.createAndFillBufferObject(gl, vertices);
+    const positionAttribLocation = gl.getAttribLocation(shaderProgram, 'aVertexPosition');
+    gl.vertexAttribPointer(positionAttribLocation, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(positionAttribLocation);
+
+    // 写入缓冲颜色数据
+    const colorBuffer = Utils.createAndFillBufferObject(gl, colors);
+    const colorAttribLocation = gl.getAttribLocation(shaderProgram, 'aVertexColor');
+    gl.vertexAttribPointer(colorAttribLocation, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(colorAttribLocation);
+
+    // 获取uniform位置
+    const projectionMatrixLocation = gl.getUniformLocation(shaderProgram, 'uProjectionMatrix');
+    const modelViewMatrixLocation = gl.getUniformLocation(shaderProgram, 'uModelViewMatrix');
+
+    // 创建透视投影矩阵（让远处的物体看起来更小 - 关键！）
+    const projectionMatrix = mat4.create();
+    mat4.perspective(projectionMatrix,
+      45 * Math.PI / 180,           // 视角：45度
+      canvas.width / canvas.height,  // 宽高比
+      0.1,                           // 近裁剪面
+      100.0);                        // 远裁剪面
+
+    // 启用深度测试（让前面的物体遮挡后面的物体）
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+
+    // 设置清除颜色
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+    // 旋转角度
+    let rotationX = 0;
+    let rotationY = 0;
+
+    // 渲染函数（动画循环）
+    function render () {
+      // 更新旋转角度
+      rotationX += 0.01;
+      rotationY += 0.007;
+
+      // 清除画布和深度缓冲
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      // 创建模型视图矩阵
+      const modelViewMatrix = mat4.create();
+
+      // 设置相机位置（向后移动3个单位，这样才能看到立方体）
+      mat4.translate(modelViewMatrix, modelViewMatrix, [0.0, 0.0, -3.0]);
+
+      // 应用旋转变换
+      mat4.rotate(modelViewMatrix, modelViewMatrix, rotationX, [1, 0, 0]); // 绕X轴旋转
+      mat4.rotate(modelViewMatrix, modelViewMatrix, rotationY, [0, 1, 0]); // 绕Y轴旋转
+
+      // 传递矩阵到着色器
+      gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
+      gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
+
+      // 绘制立方体（36个顶点）
+      gl.drawArrays(gl.TRIANGLES, 0, 36);
+
+      // 继续下一帧动画
+      requestAnimationFrame(render);
+    }
+
+    // 开始渲染循环
+    render();
+
+  </script>
+</body>
+
+</html>

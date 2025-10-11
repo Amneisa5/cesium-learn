@@ -137,6 +137,7 @@ class CustomPrimitive {
     return Cesium.destroyObject(this);
   }
 }
+
 class RenderUtil {
   constructor() { }
 
@@ -1529,6 +1530,24 @@ const readGeoTif = async () => {
   // 将 fluid 实例暴露到全局，方便控制台调用
   window.fluidDemo = fluid;
   console.log('水位上升动画已启动（5秒）。在控制台输入 fluidDemo.resetWaterAnimation() 可重新播放动画');
+
+  // 添加风场粒子系统
+  setTimeout(() => {
+    if (typeof WindParticleSystem !== 'undefined') {
+      const windSystem = new WindParticleSystem(
+        viewer,
+        { lonMin: 120, lonMax: 123.5, latMin: 30, latMax: 32.5 },
+        2000 // 流场高度，设置在地形上方以便观察
+      );
+      window.windSystem = windSystem;
+      console.log('流场粒子系统已启动。控制台命令:');
+      console.log('  windSystem.setVisible(false) - 隐藏流场');
+      console.log('  windSystem.setVisible(true) - 显示流场');
+      console.log('  windSystem.updateOptions({speedFactor: 2.0}) - 调整速度');
+    } else {
+      console.warn('WindParticleSystem 未加载，请检查 wind.js 和 Cesium-3D-Wind 相关文件');
+    }
+  }, 1000); // 延迟1秒等待地形加载完成
 }
 const viewer = new Cesium.Viewer("map",
   {

@@ -19,12 +19,166 @@
       top: 5px;
       left: 5px;
     }
+
+    .wind-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(42, 42, 42, 0.9);
+      color: white;
+      padding: 15px;
+      border-radius: 5px;
+      font-family: Arial, sans-serif;
+      min-width: 250px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .wind-controls h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      padding-bottom: 5px;
+    }
+
+    .wind-controls label {
+      display: block;
+      margin: 10px 0;
+      font-size: 12px;
+    }
+
+    .wind-controls input[type="range"] {
+      width: 100%;
+      margin-top: 5px;
+    }
+
+    .wind-controls button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 10px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .wind-controls button:hover {
+      background: #45a049;
+    }
+
+    .wind-controls button.hidden {
+      background: #f44336;
+    }
+
+    .wind-controls .value-display {
+      float: right;
+      color: #4CAF50;
+    }
   </style>
 </head>
 
 <body>
   <div id="map"></div>
+
+  <!-- 风场控制面板 -->
+  <div class="wind-controls" id="windControls" style="display: none;">
+    <h3>🌊 流场控制</h3>
+
+    <label>
+      速度倍率: <span class="value-display" id="speedValue">1.0</span>
+      <input type="range" id="speedSlider" min="0" max="5" step="0.1" value="1.0">
+    </label>
+
+    <label>
+      轨迹长度: <span class="value-display" id="fadeValue">0.996</span>
+      <input type="range" id="fadeSlider" min="0.95" max="0.999" step="0.001" value="0.996">
+    </label>
+
+    <label>
+      线条宽度: <span class="value-display" id="lineValue">2.0</span>
+      <input type="range" id="lineSlider" min="1" max="8" step="0.5" value="2.0">
+    </label>
+
+    <button id="toggleWind">隐藏流场</button>
+    <button id="resetWater" style="background: #2196F3;">重播水位动画</button>
+  </div>
+
+  <!-- 主程序 -->
   <script src="index.js"></script>
+
+  <!-- 风场系统依赖 - 必须在这个顺序加载 -->
+  <!-- 1. 首先定义全局变量 (demo, fileOptions) -->
+  <script>
+    // Cesium-3D-Wind 需要的全局变量
+    var demo = true;
+    var fileOptions = {
+      dataDirectory: 'Cesium-3D-Wind/',
+      dataFile: 'demo.nc',
+      glslDirectory: 'Cesium-3D-Wind/glsl/'
+    };
+  </script>
+  <!-- 2. 加载 Cesium-3D-Wind 核心库 -->
+  <script src="Cesium-3D-Wind/util.js"></script>
+  <script src="Cesium-3D-Wind/dataProcess.js"></script>
+  <script src="Cesium-3D-Wind/customPrimitive.js"></script>
+  <script src="Cesium-3D-Wind/particlesComputing.js"></script>
+  <script src="Cesium-3D-Wind/particlesRendering.js"></script>
+  <script src="Cesium-3D-Wind/particleSystem.js"></script>
+  <!-- 3. 最后加载我们的封装类 -->
+  <script src="wind.js"></script>
+
+  <!-- 控制面板逻辑 -->
+  <script>
+    // 等待 windSystem 初始化
+    const waitForWindSystem = setInterval(() => {
+      if (typeof windSystem !== 'undefined') {
+        clearInterval(waitForWindSystem);
+
+        // 显示控制面板
+        document.getElementById('windControls').style.display = 'block';
+
+        // 速度控制
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+          const value = parseFloat(e.target.value);
+          document.getElementById('speedValue').textContent = value.toFixed(1);
+          windSystem.updateOptions({ speedFactor: value });
+        });
+
+        // 轨迹长度控制
+        document.getElementById('fadeSlider').addEventListener('input', (e) => {
+          const value = parseFloat(e.target.value);
+          document.getElementById('fadeValue').textContent = value.toFixed(3);
+          windSystem.updateOptions({ fadeOpacity: value });
+        });
+
+        // 线宽控制
+        document.getElementById('lineSlider').addEventListener('input', (e) => {
+          const value = parseFloat(e.target.value);
+          document.getElementById('lineValue').textContent = value.toFixed(1);
+          windSystem.updateOptions({ lineWidth: value });
+        });
+
+        // 显示/隐藏切换
+        let isVisible = true;
+        document.getElementById('toggleWind').addEventListener('click', (e) => {
+          isVisible = !isVisible;
+          windSystem.setVisible(isVisible);
+          e.target.textContent = isVisible ? '隐藏流场' : '显示流场';
+          e.target.className = isVisible ? '' : 'hidden';
+        });
+
+        // 重播水位动画
+        document.getElementById('resetWater').addEventListener('click', () => {
+          if (typeof fluidDemo !== 'undefined') {
+            fluidDemo.resetWaterAnimation();
+          }
+        });
+
+        console.log('✅ 风场控制面板已激活');
+      }
+    }, 100);
+  </script>
 </body>
 
 </html>
