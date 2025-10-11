@@ -1,5 +1,3 @@
-#version 300 es
-
 in vec2 st;
 // it is not normal itself, but used to control lines drawing
 in vec3 normal; // (point to use, offset sign, not used component)
