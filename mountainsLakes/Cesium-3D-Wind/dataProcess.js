@@ -2,69 +2,150 @@ var DataProcess = (function () {
     var data;
 
     var loadNetCDF = function (filePath) {
-        return new Promise(function (resolve) {
-            var request = new XMLHttpRequest();
-            request.open('GET', filePath);
-            request.responseType = 'arraybuffer';
+        return new Promise(function (resolve, reject) {
+            // 加载两张图片：U分量和V分量
+            const url = 'images/wind3.png'; // U分量
 
-            request.onload = function () {
-                var arrayToMap = function (array) {
-                    return array.reduce(function (map, object) {
-                        map[object.name] = object;
-                        return map;
-                    }, {});
-                }
+            let imageData1 = null;
 
-                var NetCDF = new netcdfjs(request.response);
-                data = {};
+            function checkComplete () {
+                resolve({
+                    imageData: imageData1,
+                });
+            }
 
-                var dimensions = arrayToMap(NetCDF.dimensions);
-                data.dimensions = {};
-                data.dimensions.lon = dimensions['lon'].size;
-                data.dimensions.lat = dimensions['lat'].size;
-                data.dimensions.lev = dimensions['lev'].size;
+            function loadImage (url, callback) {
+                var request = new XMLHttpRequest();
+                request.open('GET', url, true);
+                request.responseType = 'blob';
 
-                var variables = arrayToMap(NetCDF.variables);
-                var uAttributes = arrayToMap(variables['U'].attributes);
-                var vAttributes = arrayToMap(variables['V'].attributes);
+                request.onload = function () {
+                    if (request.status === 200) {
+                        let blob = request.response;
+                        let reader = new FileReader();
+                        reader.onload = function (event) {
+                            let img = new Image();
+                            img.onload = function () {
+                                let canvas = document.createElement('canvas');
+                                let width = img.width;
+                                let height = img.height;
+                                canvas.width = width;
+                                canvas.height = height;
 
-                data.lon = {};
-                data.lon.array = new Float32Array(NetCDF.getDataVariable('lon').flat());
-                data.lon.min = Math.min(...data.lon.array);
-                data.lon.max = Math.max(...data.lon.array);
+                                let ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0);
 
-                data.lat = {};
-                data.lat.array = new Float32Array(NetCDF.getDataVariable('lat').flat());
-                data.lat.min = Math.min(...data.lat.array);
-                data.lat.max = Math.max(...data.lat.array);
+                                let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                                callback({
+                                    imageData: imageData.data,
+                                    width: width,
+                                    height: height
+                                });
+                            };
+                            img.src = event.target.result;
+                        };
+                        reader.readAsDataURL(blob);
+                    } else {
+                        console.error('Failed to load image:', url, 'Status:', request.status);
+                        reject(new Error('Failed to load image: ' + url));
+                    }
+                };
 
-                data.lev = {};
-                data.lev.array = new Float32Array(NetCDF.getDataVariable('lev').flat());
-                data.lev.min = Math.min(...data.lev.array);
-                data.lev.max = Math.max(...data.lev.array);
+                request.onerror = function () {
+                    console.error('Error loading image:', url);
+                    reject(new Error('Error loading image: ' + url));
+                };
 
-                data.U = {};
-                data.U.array = new Float32Array(NetCDF.getDataVariable('U').flat());
-                data.U.min = uAttributes['min'].value;
-                data.U.max = uAttributes['max'].value;
+                request.send();
+            }
 
-                data.V = {};
-                data.V.array = new Float32Array(NetCDF.getDataVariable('V').flat());
-                data.V.min = vAttributes['min'].value;
-                data.V.max = vAttributes['max'].value;
+            // 加载U分量图片
+            loadImage(url, function (data) {
+                console.log(data)
+                imageData1 = data;
+                checkComplete();
+            });
 
-                resolve(data);
-            };
-
-            request.send();
         });
     }
 
-    var loadData = async function () {
-        var ncFilePath = fileOptions.dataDirectory + fileOptions.dataFile;
-        await loadNetCDF(ncFilePath);
+    // 解析图片数据为风场数据
+    var parseImageDataToWindData = function ({ imageData }) {
+        console.log("解析图片数据为风场数据...");
+        console.log(imageData)
+        // 长江口区域范围
+        const lonMin = 120.0;
+        const lonMax = 123.5;
+        const latMin = 30.0;
+        const latMax = 32.5;
+        const levMin = 0.0;
+        const levMax = 10000.0;
 
-        return data;
+        // 网格分辨率
+        let uDataRange = {
+            max: 13.9323664496927,
+            min: 11.2951900556976
+        }
+        let vDataRange = {
+            max: 3.10780312033260,
+            min: -2.43086341409122
+        }
+
+        const lonSize = imageData.width;
+        const latSize = imageData.height;
+
+        const levSize = 1;
+        // 生成U和V风场数据
+        const totalSize = lonSize * latSize * levSize;
+        let data1 = [], data2 = [];
+
+        // 从单张图片提取U(R通道)和V(G通道)分量，图片尺寸为 14x10
+        for (let y = imageData.height - 1; y >= 0; y--) {
+            for (let x = 0; x < imageData.width; x++) {
+                const index = (y * imageData.width + x);
+                let data = imageData.imageData;
+                data1.push(data[index * 4] / 255 * (uDataRange.max - uDataRange.min) + uDataRange.min);
+                data2.push(data[index * 4 + 1] / 255 * (vDataRange.max - vDataRange.min) + vDataRange.min);
+            }
+        }
+
+        const windData = {
+            dimensions: {
+                lon: lonSize,
+                lat: latSize,
+                lev: levSize
+            },
+            lon: {
+                min: lonMin,
+                max: lonMax
+            },
+            lat: {
+                min: latMin,
+                max: latMax
+            },
+            lev: {
+                min: 1,
+                max: 1
+            },
+            U: {
+                array: data1,
+                min: uDataRange.min,
+                max: uDataRange.max
+            },
+            V: {
+                array: data2,
+                min: vDataRange.min,
+                max: vDataRange.max
+            }
+        };
+        console.log(windData)
+        return windData;
+    };
+
+    var loadData = async function () {
+        // 从图片加载风场数据
+        var imageData = await loadNetCDF();
+        return imageData;
     }
 
     var randomizeParticles = function (maxParticles, viewerParameters) {
@@ -80,6 +161,7 @@ var DataProcess = (function () {
 
     return {
         loadData: loadData,
+        parseImageDataToWindData,
         randomizeParticles: randomizeParticles
     };
 

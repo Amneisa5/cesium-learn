@@ -14,14 +14,31 @@ class Wind3D {
         // use a smaller earth radius to make sure distance to camera > 0
         this.globeBoundingSphere = new Cesium.BoundingSphere(Cesium.Cartesian3.ZERO, 0.99 * 6378137.0);
         this.updateViewerParameters();
+        // 从图片加载并解析风场数据，然后创建粒子系统并渲染
+        DataProcess.loadData()
+            .then((imageData) => {
+                return DataProcess.parseImageDataToWindData(imageData);
+            })
+            .then((data) => {
+                // 确保纹理数据为 Float32Array
+                if (!(data.U.array instanceof Float32Array)) {
+                    data.U.array = new Float32Array(data.U.array);
+                }
+                if (!(data.V.array instanceof Float32Array)) {
+                    data.V.array = new Float32Array(data.V.array);
+                }
 
-        DataProcess.loadData().then(
-            (data) => {
-                this.particleSystem = new ParticleSystem(this.scene.context, data,
-                    this.panel.getUserInput(), this.viewerParameters);
+                this.particleSystem = new ParticleSystem(
+                    this.scene.context,
+                    data,
+                    this.panel.getUserInput(),
+                    this.viewerParameters
+                );
                 this.addPrimitives();
-
                 this.setupEventListeners();
+            })
+            .catch((error) => {
+                console.error("加载或解析风场图片数据失败:", error);
             });
 
         this.imageryLayers = this.viewer.imageryLayers;
@@ -40,12 +57,11 @@ class Wind3D {
     }
 
     updateViewerParameters () {
-        var viewRectangle = this.camera.computeViewRectangle(this.scene.globe.ellipsoid);
-        var lonLatRange = Util.viewRectangleToLonLatRange(viewRectangle);
-        this.viewerParameters.lonRange.x = lonLatRange.lon.min;
-        this.viewerParameters.lonRange.y = lonLatRange.lon.max;
-        this.viewerParameters.latRange.x = lonLatRange.lat.min;
-        this.viewerParameters.latRange.y = lonLatRange.lat.max;
+        // 使用长江口固定范围，而不是相机视野
+        this.viewerParameters.lonRange.x = 120.0;  // 120°E
+        this.viewerParameters.lonRange.y = 123.5;  // 123.5°E
+        this.viewerParameters.latRange.x = 30.0;   // 30°N
+        this.viewerParameters.latRange.y = 32.5;   // 32.5°N
 
         var pixelSize = this.camera.getPixelSize(
             this.globeBoundingSphere,
@@ -55,7 +71,13 @@ class Wind3D {
 
         if (pixelSize > 0) {
             this.viewerParameters.pixelSize = pixelSize;
+        } else {
+            this.viewerParameters.pixelSize = 1.0; // 默认值
         }
+
+        console.log("风场范围设置为长江口区域:",
+            this.viewerParameters.lonRange.x, "-", this.viewerParameters.lonRange.y, "°E,",
+            this.viewerParameters.latRange.x, "-", this.viewerParameters.latRange.y, "°N");
     }
 
     setGlobeLayer (userInput) {
@@ -114,6 +136,88 @@ class Wind3D {
         window.addEventListener('layerOptionsChanged', function () {
             that.setGlobeLayer(that.panel.getUserInput());
         });
+    }
+
+    // 生成长江口区域的风场数据
+    createYangtzeWindData () {
+        console.log("生成长江口区域风场数据...");
+
+        // 长江口区域范围
+        const lonMin = 120.0;
+        const lonMax = 123.5;
+        const latMin = 30.0;
+        const latMax = 32.5;
+        const levMin = 0.0;
+        const levMax = 10000.0;
+
+        // 网格分辨率
+        const lonRes = 0.1; // 0.1度经度
+        const latRes = 0.1; // 0.1度纬度
+        const levRes = 1000.0; // 1km高度层
+
+        const lonSize = Math.floor((lonMax - lonMin) / lonRes) + 1;
+        const latSize = Math.floor((latMax - latMin) / latRes) + 1;
+        const levSize = Math.floor((levMax - levMin) / levRes) + 1;
+
+        console.log("风场网格尺寸:", lonSize, "x", latSize, "x", levSize);
+
+        // 生成U和V风场数据
+        const totalSize = lonSize * latSize * levSize;
+        const U = new Float32Array(totalSize);
+        const V = new Float32Array(totalSize);
+
+        for (let i = 0; i < totalSize; i++) {
+            const lev = Math.floor(i / (lonSize * latSize));
+            const lat = Math.floor((i % (lonSize * latSize)) / lonSize);
+            const lon = i % lonSize;
+
+            const actualLon = lonMin + lon * lonRes;
+            const actualLat = latMin + lat * latRes;
+            const actualLev = levMin + lev * levRes;
+
+            // 生成简单的风场模式：从西向东，从南向北
+            const u = 5.0 + 3.0 * Math.sin(actualLon * Math.PI / 180.0) * Math.cos(actualLat * Math.PI / 180.0);
+            const v = 2.0 + 1.0 * Math.cos(actualLon * Math.PI / 180.0) * Math.sin(actualLat * Math.PI / 180.0);
+
+            U[i] = u;
+            V[i] = v;
+        }
+
+        const data = {
+            dimensions: {
+                lon: lonSize,
+                lat: latSize,
+                lev: levSize
+            },
+            lon: {
+                min: lonMin,
+                max: lonMax
+            },
+            lat: {
+                min: latMin,
+                max: latMax
+            },
+            lev: {
+                min: levMin,
+                max: levMax
+            },
+            U: {
+                array: U,
+                min: Math.min(...U),
+                max: Math.max(...U)
+            },
+            V: {
+                array: V,
+                min: Math.min(...V),
+                max: Math.max(...V)
+            }
+        };
+
+        console.log("风场数据生成完成:",
+            "U范围:", data.U.min.toFixed(2), "-", data.U.max.toFixed(2),
+            "V范围:", data.V.min.toFixed(2), "-", data.V.max.toFixed(2));
+
+        return data;
     }
 
     debug () {

@@ -15,16 +15,8 @@ void main() {
 
     trailsColor = floor(fadeOpacity * 255.0 * trailsColor) / 255.0; // make sure the trailsColor will be strictly decreased
 
-    float pointsDepth = texture(segmentsDepthTexture, textureCoordinate).r;
-    float trailsDepth = texture(trailsDepthTexture, textureCoordinate).r;
-    float globeDepth = czm_unpackDepth(texture(czm_globeDepthTexture, textureCoordinate));
-
-    outputColor = vec4(0.0);
-    if (pointsDepth < globeDepth) {
-        outputColor = outputColor + pointsColor;
-    }
-    if (trailsDepth < globeDepth) {
-        outputColor = outputColor + trailsColor;
-    }
-    gl_FragDepth = min(pointsDepth, trailsDepth);
+    // 合成并整体降低透明度
+    vec4 color = pointsColor + trailsColor;
+    color.a *= 0.7;
+    outputColor = color;
 }

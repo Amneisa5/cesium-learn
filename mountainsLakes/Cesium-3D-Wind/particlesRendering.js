@@ -154,9 +154,12 @@ class ParticlesRendering {
                     // undefined value means let Cesium deal with it
                     viewport: undefined,
                     depthTest: {
-                        enabled: true
+                        enabled: false
                     },
-                    depthMask: true
+                    depthMask: false,
+                    blending: {
+                        enabled: true
+                    }
                 }),
                 framebuffer: this.framebuffers.segments,
                 autoClear: true
@@ -199,10 +202,9 @@ class ParticlesRendering {
                 rawRenderState: Util.createRawRenderState({
                     viewport: undefined,
                     depthTest: {
-                        enabled: true,
-                        func: Cesium.DepthFunction.ALWAYS // always pass depth test for full control of depth information
+                        enabled: false
                     },
-                    depthMask: true
+                    depthMask: false
                 }),
                 framebuffer: this.framebuffers.nextTrails,
                 autoClear: true,

@@ -23,15 +23,17 @@ float rand(vec2 seed, vec2 range) {
 }
 
 vec3 generateRandomParticle(vec2 seed, float lev) {
-    // ensure the longitude is in [0, 360]
-    float randomLon = mod(rand(seed, lonRange), 360.0);
+    // respawn strictly inside configured lon/lat ranges (Yangtze bounding box)
+    float randomLon = rand(seed, lonRange);
     float randomLat = rand(-seed, latRange);
-
     return vec3(randomLon, randomLat, lev);
 }
 
 bool particleOutbound(vec3 particle) {
-    return particle.y < -90.0 || particle.y > 90.0;
+    // cull if outside Yangtze bounding box
+    bool lonOut = (particle.x < lonRange.x) || (particle.x > lonRange.y);
+    bool latOut = (particle.y < latRange.x) || (particle.y > latRange.y);
+    return lonOut || latOut;
 }
 
 void main() {

@@ -6,13 +6,13 @@ const fileOptions = {
 }
 
 const defaultParticleSystemOptions = {
-    maxParticles: 64 * 64,
+    maxParticles: 48 * 48, // 减少数量
     particleHeight: 100.0,
-    fadeOpacity: 0.996,
+    fadeOpacity: 0.97, // 增强衰减，轨迹更透明
     dropRate: 0.003,
     dropRateBump: 0.01,
     speedFactor: 1.0,
-    lineWidth: 4.0
+    lineWidth: 2.0
 }
 
 const globeLayers = [

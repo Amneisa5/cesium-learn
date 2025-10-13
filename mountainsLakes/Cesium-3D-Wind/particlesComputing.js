@@ -41,7 +41,8 @@ class ParticlesComputing {
             })
         };
 
-        var particlesArray = DataProcess.randomizeParticles(userInput.maxParticles, viewerParameters)
+        // 直接生成粒子位置，限制在长江口区域
+        var particlesArray = this.generateParticlesInYangtzeRegion(userInput.maxParticles);
         var zeroArray = new Float32Array(4 * userInput.maxParticles).fill(0);
 
         this.particlesTextures = {
@@ -58,6 +59,30 @@ class ParticlesComputing {
         Object.keys(this.particlesTextures).forEach((key) => {
             this.particlesTextures[key].destroy();
         });
+    }
+
+    // 在长江口区域生成粒子
+    generateParticlesInYangtzeRegion (maxParticles) {
+        var array = new Float32Array(4 * maxParticles);
+
+        // 长江口区域范围
+        const lonMin = 120.0;   // 120°E
+        const lonMax = 123.5;   // 123.5°E
+        const latMin = 30.0;    // 30°N
+        const latMax = 32.5;    // 32.5°N
+        const levMin = 0.0;     // 海平面
+        const levMax = 10000.0; // 10km高度
+
+        console.log("在长江口区域生成粒子:", lonMin, "-", lonMax, "°E,", latMin, "-", latMax, "°N");
+
+        for (var i = 0; i < maxParticles; i++) {
+            array[4 * i] = Cesium.Math.randomBetween(lonMin, lonMax);     // 经度
+            array[4 * i + 1] = Cesium.Math.randomBetween(latMin, latMax); // 纬度
+            array[4 * i + 2] = Cesium.Math.randomBetween(levMin, levMax); // 高度
+            array[4 * i + 3] = 1.0; // 标记为有效粒子
+        }
+
+        return array;
     }
 
     createComputingPrimitives (data, userInput, viewerParameters) {

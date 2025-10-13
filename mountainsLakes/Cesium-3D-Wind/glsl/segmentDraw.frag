@@ -1,6 +1,6 @@
 out vec4 outputColor;
 
 void main() {
-    const vec4 white = vec4(1.0);
-    outputColor = white;
+    // 降低粒子段初始不透明度
+    outputColor = vec4(1.0, 1.0, 1.0, 0.6);
 }

@@ -6,12 +6,6 @@ out vec4 outputColor;
 
 void main() {
     vec4 trailsColor = texture(trailsColorTexture, textureCoordinate);
-    float trailsDepth = texture(trailsDepthTexture, textureCoordinate).r;
-    float globeDepth = czm_unpackDepth(texture(czm_globeDepthTexture, textureCoordinate));
-
-    if (trailsDepth < globeDepth) {
-        outputColor = trailsColor;
-    } else {
-        outputColor = vec4(0.0);
-    }
+    // 直接输出粒子颜色（不与地球深度比较），确保任意角度可见
+    outputColor = trailsColor;
 }
