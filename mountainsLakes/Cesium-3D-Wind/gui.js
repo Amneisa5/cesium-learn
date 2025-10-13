@@ -11,8 +11,8 @@ const defaultParticleSystemOptions = {
     fadeOpacity: 0.97, // 增强衰减，轨迹更透明
     dropRate: 0.003,
     dropRateBump: 0.01,
-    speedFactor: 1.0,
-    lineWidth: 2.0
+    speedFactor: 0.4,
+    lineWidth: 4.0
 }
 
 const globeLayers = [

@@ -3,8 +3,8 @@ var DataProcess = (function () {
 
     var loadNetCDF = function (filePath) {
         return new Promise(function (resolve, reject) {
-            // 加载两张图片：U分量和V分量
-            const url = 'images/wind3.png'; // U分量
+            // 兼容旧实现：从图片加载（保留）
+            const url = 'images/wind3.png';
 
             let imageData1 = null;
 
@@ -61,7 +61,6 @@ var DataProcess = (function () {
 
             // 加载U分量图片
             loadImage(url, function (data) {
-                console.log(data)
                 imageData1 = data;
                 checkComplete();
             });
@@ -69,10 +68,70 @@ var DataProcess = (function () {
         });
     }
 
+    // 从 JSON 读取风场（U/V）数据
+    var loadJsonWind = function (url) {
+        return new Promise(function (resolve, reject) {
+            var request = new XMLHttpRequest();
+            request.open('GET', url, true);
+            request.responseType = 'json';
+            request.onload = function () {
+                if (request.status === 200) {
+                    resolve(request.response);
+                } else {
+                    reject(new Error('Failed to load json: ' + url + ' status=' + request.status));
+                }
+            };
+            request.onerror = function () { reject(new Error('Error loading json: ' + url)); };
+            request.send();
+        });
+    }
+
+    // 解析 JSON 为内部风场结构
+    var parseJsonToWindData = function (json) {
+        var header = json.header || {};
+        var lo1 = header.lo1, lo2 = header.lo2, la1 = header.la1, la2 = header.la2;
+        var nx = header.nx, ny = header.ny;
+        if (!(nx > 0 && ny > 0)) {
+            throw new Error('Invalid grid size in json');
+        }
+
+        var lonMin = lo1; var lonMax = lo2;
+        var latMin = la1; var latMax = la2;
+        var levSize = 1;
+
+        var values = json.values || [];
+        if (values.length !== nx * ny) {
+            // 容错：若点顺序不同，仍按提供的长度截断/填充
+            console.warn('values length != nx*ny, got', values.length, 'expected', nx * ny);
+        }
+
+        var totalSize = nx * ny * levSize;
+        var U = new Float32Array(totalSize);
+        var V = new Float32Array(totalSize);
+
+        var uMin = 1e9, uMax = -1e9, vMin = 1e9, vMax = -1e9;
+        for (var j = 0; j < ny; j++) {
+            for (var i = 0; i < nx; i++) {
+                var idx2 = j * nx + i; // 按 header.origin=lower-left 顺序给出，纹理采样统一按索引
+                var val = values[idx2] || { u: 0, v: 0 };
+                var u = Number(val.u) || 0; var v = Number(val.v) || 0;
+                U[idx2] = u; V[idx2] = v;
+                if (u < uMin) uMin = u; if (u > uMax) uMax = u;
+                if (v < vMin) vMin = v; if (v > vMax) vMax = v;
+            }
+        }
+        return {
+            dimensions: { lon: nx, lat: ny, lev: levSize },
+            lon: { min: lonMin, max: lonMax },
+            lat: { min: latMin, max: latMax },
+            lev: { min: 1, max: 1 },
+            U: { array: U, min: uMin, max: uMax },
+            V: { array: V, min: vMin, max: vMax }
+        };
+    }
+
     // 解析图片数据为风场数据
     var parseImageDataToWindData = function ({ imageData }) {
-        console.log("解析图片数据为风场数据...");
-        console.log(imageData)
         // 长江口区域范围
         const lonMin = 120.0;
         const lonMax = 123.5;
@@ -98,14 +157,19 @@ var DataProcess = (function () {
         // 生成U和V风场数据
         const totalSize = lonSize * latSize * levSize;
         let data1 = [], data2 = [];
-
         // 从单张图片提取U(R通道)和V(G通道)分量，图片尺寸为 14x10
         for (let y = imageData.height - 1; y >= 0; y--) {
             for (let x = 0; x < imageData.width; x++) {
                 const index = (y * imageData.width + x);
                 let data = imageData.imageData;
                 data1.push(data[index * 4] / 255 * (uDataRange.max - uDataRange.min) + uDataRange.min);
-                data2.push(data[index * 4 + 1] / 255 * (vDataRange.max - vDataRange.min) + vDataRange.min);
+                let v = data[index * 4 + 2] / 255 * (vDataRange.max - vDataRange.min) + vDataRange.min;
+                if (v > 0) {
+                    v += 1;
+                } else {
+                    v -= 1;
+                }
+                data2.push(v);
             }
         }
 
@@ -128,24 +192,29 @@ var DataProcess = (function () {
                 max: 1
             },
             U: {
-                array: data1,
+                array: new Float32Array(data1),
                 min: uDataRange.min,
                 max: uDataRange.max
             },
             V: {
-                array: data2,
+                array: new Float32Array(data2),
                 min: vDataRange.min,
                 max: vDataRange.max
             }
         };
-        console.log(windData)
         return windData;
     };
 
     var loadData = async function () {
-        // 从图片加载风场数据
-        var imageData = await loadNetCDF();
-        return imageData;
+        // 优先从 JSON 读取
+        try {
+            var json = await loadJsonWind('json/changjiangkou.json');
+            return { json: json, type: 'json' };
+        } catch (e) {
+            console.warn('JSON 加载失败，回退到图片: ', e && e.message);
+            var imageData = await loadNetCDF();
+            return { imageData: imageData, type: 'image' };
+        }
     }
 
     var randomizeParticles = function (maxParticles, viewerParameters) {
@@ -161,6 +230,8 @@ var DataProcess = (function () {
 
     return {
         loadData: loadData,
+        loadJsonWind: loadJsonWind,
+        parseJsonToWindData: parseJsonToWindData,
         parseImageDataToWindData,
         randomizeParticles: randomizeParticles
     };

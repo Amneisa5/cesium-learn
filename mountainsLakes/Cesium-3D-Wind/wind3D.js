@@ -14,10 +14,14 @@ class Wind3D {
         // use a smaller earth radius to make sure distance to camera > 0
         this.globeBoundingSphere = new Cesium.BoundingSphere(Cesium.Cartesian3.ZERO, 0.99 * 6378137.0);
         this.updateViewerParameters();
-        // 从图片加载并解析风场数据，然后创建粒子系统并渲染
+        // 加载并解析风场数据（优先 JSON，失败回退到图片）
         DataProcess.loadData()
-            .then((imageData) => {
-                return DataProcess.parseImageDataToWindData(imageData);
+            .then((payload) => {
+                if (payload.type === 'json') {
+                    console.log(DataProcess.parseJsonToWindData(payload.json))
+                    return DataProcess.parseJsonToWindData(payload.json);
+                }
+                return DataProcess.parseImageDataToWindData(payload.imageData);
             })
             .then((data) => {
                 // 确保纹理数据为 Float32Array
