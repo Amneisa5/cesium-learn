@@ -40,28 +40,14 @@ var Util = (function () {
 	}
 
 	var createTexture = function (options, typedArray) {
-		// 确保必要的参数存在
-		if (!options.width || !options.height) {
-			console.error('❌ Texture creation error: width and height are required');
-			console.error('   options:', options);
-			console.error('   has typedArray:', Cesium.defined(typedArray));
-			console.error('   Stack trace:', new Error().stack);
-			throw new Error('Texture requires width and height');
-		}
-
-		// 创建 options 的副本以避免修改原对象
-		var textureOptions = Object.assign({}, options);
-
 		if (Cesium.defined(typedArray)) {
 			// typed array needs to be passed as source option, this is required by Cesium.Texture
-			textureOptions.source = {
-				width: textureOptions.width,
-				height: textureOptions.height,
-				arrayBufferView: typedArray
-			};
+			var source = {};
+			source.arrayBufferView = typedArray;
+			options.source = source;
 		}
 
-		var texture = new Cesium.Texture(textureOptions);
+		var texture = new Cesium.Texture(options);
 		return texture;
 	}
 

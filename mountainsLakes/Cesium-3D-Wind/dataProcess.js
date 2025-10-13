@@ -1,73 +1,5 @@
-// 如果 fileOptions 已经存在（由 wind.js 定义），则使用它；否则使用默认值
-if (typeof fileOptions === 'undefined') {
-    var fileOptions = {
-        dataDirectory: 'Cesium-3D-Wind/',
-        dataFile: "demo.nc",
-        glslDirectory: 'Cesium-3D-Wind/glsl/'
-    };
-}
-
 var DataProcess = (function () {
     var data;
-    var loadColorTable = function (
-        colorTable = [[0.015686,
-            0.054902,
-            0.847059],
-        [0.125490,
-            0.313725,
-            1.000000],
-        [0.254902,
-            0.588235,
-            1.000000],
-        [0.427451,
-            0.756863,
-            1.000000],
-        [0.525490,
-            0.850980,
-            1.000000],
-        [0.611765,
-            0.933333,
-            1.000000],
-        [0.686275,
-            0.960784,
-            1.000000],
-        [0.807843,
-            1.000000,
-            1.000000],
-        [1.000000,
-            0.996078,
-            0.278431],
-        [1.000000,
-            0.921569,
-            0.000000],
-        [1.000000,
-            0.768627,
-            0.000000],
-        [1.000000,
-            0.564706,
-            0.000000],
-        [1.000000,
-            0.282353,
-            0.000000],
-        [1.000000,
-            0.000000,
-            0.000000],
-        [0.835294,
-            0.000000,
-            0.000000],
-        [0.619608,
-            0.000000,
-            0.000000]]) {
-        let colorNum = colorTable.length;
-        let arr = [];
-        colorTable.map(color => {
-            arr = arr.concat(color);
-        })
-        data.colorTable = {
-            colorNum,
-            array: new Float32Array(arr.flat())
-        };
-    }
 
     var loadNetCDF = function (filePath) {
         return new Promise(function (resolve) {
@@ -82,10 +14,10 @@ var DataProcess = (function () {
                         return map;
                     }, {});
                 }
-                // 读取nc数据
+
                 var NetCDF = new netcdfjs(request.response);
-                console.log(NetCDF)
                 data = {};
+
                 var dimensions = arrayToMap(NetCDF.dimensions);
                 data.dimensions = {};
                 data.dimensions.lon = dimensions['lon'].size;
@@ -120,8 +52,7 @@ var DataProcess = (function () {
                 data.V.array = new Float32Array(NetCDF.getDataVariable('V').flat());
                 data.V.min = vAttributes['min'].value;
                 data.V.max = vAttributes['max'].value;
-                loadColorTable()
-                console.log(data)
+
                 resolve(data);
             };
 
@@ -132,15 +63,14 @@ var DataProcess = (function () {
     var loadData = async function () {
         var ncFilePath = fileOptions.dataDirectory + fileOptions.dataFile;
         await loadNetCDF(ncFilePath);
+
         return data;
     }
 
     var randomizeParticles = function (maxParticles, viewerParameters) {
         var array = new Float32Array(4 * maxParticles);
         for (var i = 0; i < maxParticles; i++) {
-            // 经度随机值
             array[4 * i] = Cesium.Math.randomBetween(viewerParameters.lonRange.x, viewerParameters.lonRange.y);
-            // 纬度随机值
             array[4 * i + 1] = Cesium.Math.randomBetween(viewerParameters.latRange.x, viewerParameters.latRange.y);
             array[4 * i + 2] = Cesium.Math.randomBetween(data.lev.min, data.lev.max);
             array[4 * i + 3] = 0.0;

@@ -2,7 +2,7 @@ uniform sampler2D trailsColorTexture;
 uniform sampler2D trailsDepthTexture;
 
 in vec2 textureCoordinate;
-out vec4 fragColor;
+out vec4 outputColor;
 
 void main() {
     vec4 trailsColor = texture(trailsColorTexture, textureCoordinate);
@@ -10,8 +10,8 @@ void main() {
     float globeDepth = czm_unpackDepth(texture(czm_globeDepthTexture, textureCoordinate));
 
     if (trailsDepth < globeDepth) {
-        fragColor = trailsColor;
+        outputColor = trailsColor;
     } else {
-        fragColor = vec4(0.0);
+        outputColor = vec4(0.0);
     }
 }

@@ -1,8 +1,5 @@
-
-
 class ParticlesRendering {
     constructor(context, data, userInput, viewerParameters, particlesComputing) {
-        this.colour = true;
         this.createRenderingTextures(context, data);
         this.createRenderingFramebuffers(context);
         this.createRenderingPrimitives(context, userInput, viewerParameters, particlesComputing);
@@ -23,17 +20,6 @@ class ParticlesRendering {
             pixelFormat: Cesium.PixelFormat.DEPTH_COMPONENT,
             pixelDatatype: Cesium.PixelDatatype.UNSIGNED_INT
         };
-        const colorTableTextureOptions = {
-            context: context,
-            width: data.colorTable.colorNum,
-            height: 1,
-            pixelFormat: Cesium.PixelFormat.RGB,
-            pixelDatatype: Cesium.PixelDatatype.FLOAT,
-            sampler: new Cesium.Sampler({
-                minificationFilter: Cesium.TextureMinificationFilter.LINEAR,
-                magnificationFilter: Cesium.TextureMagnificationFilter.LINEAR
-            })
-        };
 
         this.textures = {
             segmentsColor: Util.createTexture(colorTextureOptions),
@@ -44,7 +30,6 @@ class ParticlesRendering {
 
             nextTrailsColor: Util.createTexture(colorTextureOptions),
             nextTrailsDepth: Util.createTexture(depthTextureOptions),
-            colorTable: Util.createTexture(colorTableTextureOptions, data.colorTable.array)
         };
     }
 
@@ -55,7 +40,7 @@ class ParticlesRendering {
             nextTrails: Util.createFramebuffer(context, this.textures.nextTrailsColor, this.textures.nextTrailsDepth)
         }
     }
-    // 生成自定义几何
+
     createSegmentsGeometry (userInput) {
         const repeatVertex = 6;
 

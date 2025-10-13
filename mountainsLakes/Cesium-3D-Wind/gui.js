@@ -1,14 +1,13 @@
-var demo = Cesium.defaultValue(demo, false);    // 没有demo参数则demo创建为false
 
 const fileOptions = {
-    dataDirectory: demo ? 'http://127.0.0.1:5500/data/' : '../data/',
+    dataDirectory: 'data/',
     dataFile: "demo.nc",
-    glslDirectory: demo ? '../Cesium-3D-Wind/glsl/' : 'glsl/'
+    glslDirectory: 'Cesium-3D-Wind/glsl/'
 }
 
 const defaultParticleSystemOptions = {
-    maxParticles: 64 * 64,  // 粒子数量
-    particleHeight: 100.0,  // 
+    maxParticles: 64 * 64,
+    particleHeight: 100.0,
     fadeOpacity: 0.996,
     dropRate: 0.003,
     dropRateBump: 0.01,

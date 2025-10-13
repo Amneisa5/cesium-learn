@@ -1,45 +1,20 @@
-
 class Wind3D {
-    constructor(panel, mode) {
-        var options = {
-            // use Sentinel-2 instead of the default Bing Maps because Bing Maps sessions is limited
-            imageryProvider: new Cesium.IonImageryProvider({ assetId: 3954 }),
-            baseLayerPicker: false,
-            geocoder: false,
-            infoBox: false,
-            fullscreenElement: 'cesiumContainer',
-            // useBrowserRecommendedResolution can be set to false to improve the render quality
-            // useBrowserRecommendedResolution: false,
-            scene3DOnly: true,
-            contextOptions: {
-                requestWebgl1: true,
-            },
-        }
-
-        if (mode.debug) {
-            options.useDefaultRenderLoop = false;
-        }
-
-        this.viewer = new Cesium.Viewer('cesiumContainer', options);
+    constructor(viewer, panel) {
+        this.viewer = viewer;
         this.scene = this.viewer.scene;
         this.camera = this.viewer.camera;
-        this.colorTable = [
-            [[1.0, 1.0, 1.0]]
-        ]
 
         this.panel = panel;
-        // 经纬度范围
+
         this.viewerParameters = {
-            lonRange: new Cesium.Cartesian2(),  // 2D笛卡尔点。
+            lonRange: new Cesium.Cartesian2(),
             latRange: new Cesium.Cartesian2(),
-            pixelSize: 0.0  // 像素大小
+            pixelSize: 0.0
         };
         // use a smaller earth radius to make sure distance to camera > 0
-        // 创建一个包围球，包裹在地球上层
         this.globeBoundingSphere = new Cesium.BoundingSphere(Cesium.Cartesian3.ZERO, 0.99 * 6378137.0);
-        // 更新参数
         this.updateViewerParameters();
-        // 加载demo数据
+
         DataProcess.loadData().then(
             (data) => {
                 this.particleSystem = new ParticleSystem(this.scene.context, data,
@@ -47,10 +22,6 @@ class Wind3D {
                 this.addPrimitives();
 
                 this.setupEventListeners();
-
-                if (mode.debug) {
-                    this.debug();
-                }
             });
 
         this.imageryLayers = this.viewer.imageryLayers;
@@ -94,28 +65,15 @@ class Wind3D {
         var globeLayer = userInput.globeLayer;
         switch (globeLayer.type) {
             case "NaturalEarthII": {
-                this.viewer.imageryLayers.addImageryProvider(
-                    new Cesium.TileMapServiceImageryProvider({
-                        url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
-                    })
-                );
+
                 break;
             }
             case "WMS": {
-                this.viewer.imageryLayers.addImageryProvider(new Cesium.WebMapServiceImageryProvider({
-                    url: userInput.WMS_URL,
-                    layers: globeLayer.layer,
-                    parameters: {
-                        ColorScaleRange: globeLayer.ColorScaleRange
-                    }
-                }));
+
                 break;
             }
             case "WorldTerrain": {
-                this.viewer.imageryLayers.addImageryProvider(
-                    new Cesium.IonImageryProvider({ assetId: 3954 })
-                );
-                this.viewer.terrainProvider = Cesium.createWorldTerrain();
+
                 break;
             }
         }

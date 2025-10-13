@@ -8,6 +8,9 @@
   <script src="https://cdn.jsdelivr.net/npm/geotiff"></script>
   <link href="/libs/Cesium-1.118/CesiumUnminified/Widgets/widgets.css" rel="stylesheet">
   <script type="text/javascript" src="/libs/Cesium-1.118/CesiumUnminified/Cesium.js"></script>
+  <script src="https://www.lactame.com/lib/netcdfjs/0.7.0/netcdfjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dat.gui@0.7.6/build/dat.gui.min.js"></script>
+  <script src="https://spectorcdn.babylonjs.com/spector.bundle.js"></script>
   <style>
     body {
       padding: 0;
@@ -104,30 +107,16 @@
     <button id="resetWater" style="background: #2196F3;">重播水位动画</button>
   </div>
 
-  <!-- 主程序 -->
-  <script src="index.js"></script>
-
-  <!-- 风场系统依赖 - 必须在这个顺序加载 -->
-  <!-- 1. 首先定义全局变量 (demo, fileOptions) -->
-  <script>
-    // Cesium-3D-Wind 需要的全局变量
-    var demo = true;
-    var fileOptions = {
-      dataDirectory: 'Cesium-3D-Wind/',
-      dataFile: 'demo.nc',
-      glslDirectory: 'Cesium-3D-Wind/glsl/'
-    };
-  </script>
-  <!-- 2. 加载 Cesium-3D-Wind 核心库 -->
   <script src="Cesium-3D-Wind/util.js"></script>
   <script src="Cesium-3D-Wind/dataProcess.js"></script>
   <script src="Cesium-3D-Wind/customPrimitive.js"></script>
   <script src="Cesium-3D-Wind/particlesComputing.js"></script>
   <script src="Cesium-3D-Wind/particlesRendering.js"></script>
   <script src="Cesium-3D-Wind/particleSystem.js"></script>
-  <!-- 3. 最后加载我们的封装类 -->
-  <script src="wind.js"></script>
-
+  <script src="Cesium-3D-Wind/wind3D.js"></script>
+  <script src="Cesium-3D-Wind/gui.js"></script>
+  <!-- 主程序 -->
+  <script src="index.js"></script>
   <!-- 控制面板逻辑 -->
   <script>
     // 等待 windSystem 初始化

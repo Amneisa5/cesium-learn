@@ -9,7 +9,8 @@ uniform float randomCoefficient; // use to improve the pseudo-random generator
 uniform float dropRate; // drop rate is a chance a particle will restart at random position to avoid degeneration
 uniform float dropRateBump;
 
-out vec4 fragColor;
+in vec2 v_textureCoordinates;
+out vec4 outputColor;
 
 // pseudo-random generator
 const vec3 randomConstants = vec3(12.9898, 78.233, 4375.85453);
@@ -34,9 +35,6 @@ bool particleOutbound(vec3 particle) {
 }
 
 void main() {
-    // Cesium ComputeCommand 自动提供 gl_FragCoord，需要转换为纹理坐标
-    vec2 v_textureCoordinates = gl_FragCoord.xy / czm_viewport.zw;
-    
     vec3 nextParticle = texture(nextParticlesPosition, v_textureCoordinates).rgb;
     vec4 nextSpeed = texture(particlesSpeed, v_textureCoordinates);
     float speedNorm = nextSpeed.a;
@@ -48,8 +46,8 @@ void main() {
     float randomNumber = rand(seed2, normalRange);
 
     if (randomNumber < particleDropRate || particleOutbound(nextParticle)) {
-        fragColor = vec4(randomParticle, 1.0); // 1.0 means this is a random particle
+        outputColor = vec4(randomParticle, 1.0); // 1.0 means this is a random particle
     } else {
-        fragColor = vec4(nextParticle, 0.0);
+        outputColor = vec4(nextParticle, 0.0);
     }
 }

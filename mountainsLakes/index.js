@@ -1538,55 +1538,16 @@ const readGeoTif = async () => {
   console.log('🌬️ 准备初始化风场系统...');
   setTimeout(() => {
     console.log('🌬️ 开始初始化风场系统');
-    console.log('  - WindParticleSystem 是否存在:', typeof WindParticleSystem !== 'undefined');
-    console.log('  - ParticleSystem 是否存在:', typeof ParticleSystem !== 'undefined');
+    try {
+      var panel = new Panel();
+      var wind3D = new Wind3D(
+        viewer,
+        panel,
+      );
 
-    if (typeof WindParticleSystem !== 'undefined') {
-      try {
-        const windBounds = { lonMin: 120, lonMax: 123.5, latMin: 30, latMax: 32.5 };
-        const windSystem = new WindParticleSystem(
-          viewer,
-          windBounds,
-          50000 // 流场高度，设置更高以便观察
-        );
-        window.windSystem = windSystem;
-
-        // 增加粒子可见性
-        windSystem.updateOptions({
-          speedFactor: 2.0,
-          lineWidth: 4.0,
-          fadeOpacity: 0.998
-        });
-
-        console.log('✅ 流场粒子系统已启动！');
-        console.log('📋 流场区域:', windBounds);
-
-        // 相机飞到流场中心
-        const centerLon = (windBounds.lonMin + windBounds.lonMax) / 2;
-        const centerLat = (windBounds.latMin + windBounds.latMax) / 2;
-        const centerHeight = 50000;
-
-        viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, centerHeight * 2),
-          orientation: {
-            heading: Cesium.Math.toRadians(0),
-            pitch: Cesium.Math.toRadians(-45),
-            roll: 0.0
-          },
-          duration: 3
-        });
-
-        console.log('📹 相机正在飞往流场中心:', centerLon, centerLat, centerHeight);
-        console.log('📋 控制台命令:');
-        console.log('  windSystem.setVisible(false) - 隐藏流场');
-        console.log('  windSystem.setVisible(true) - 显示流场');
-        console.log('  windSystem.updateOptions({speedFactor: 5.0, lineWidth: 10.0}) - 调整参数');
-      } catch (error) {
-        console.error('❌ 风场系统初始化失败:', error);
-        console.error('错误堆栈:', error.stack);
-      }
-    } else {
-      console.warn('⚠️ WindParticleSystem 未加载，请检查 wind.js 和 Cesium-3D-Wind 相关文件');
+    } catch (error) {
+      console.error('❌ 风场系统初始化失败:', error);
+      console.error('错误堆栈:', error.stack);
     }
   }, 1000); // 延迟1秒等待地形加载完成
 }
@@ -1612,7 +1573,9 @@ const viewer = new Cesium.Viewer("map",
     // 背景透明
     skyBox: false,
     skyAtmosphere: false,
-    backgroundColor: Cesium.Color.TRANSPARENT
+    backgroundColor: Cesium.Color.TRANSPARENT,
+    baseLayerPicker: false,
+    geocoder: false,
   });
 
 window.addEventListener("DOMContentLoaded", () => {

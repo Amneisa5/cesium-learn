@@ -14,9 +14,11 @@ uniform vec2 vSpeedRange;
 uniform float pixelSize;
 uniform float speedFactor;
 
-out vec4 fragColor;
+float speedScaleFactor;
 
-// 将经纬度和高度转换为纹理中的归一化索引。
+in vec2 v_textureCoordinates;
+out vec4 outputColor;
+
 vec2 mapPositionToNormalizedIndex2D(vec3 lonLatLev) {
     // ensure the range of longitude and latitude
     lonLatLev.x = mod(lonLatLev.x, 360.0);
@@ -47,7 +49,7 @@ float getWindComponent(sampler2D componentTexture, vec3 lonLatLev) {
     float result = texture(componentTexture, normalizedIndex2D).r;
     return result;
 }
-// 使用双线性插值（bilinear interpolation）从纹理中获取风速分量的值。
+
 float interpolateTexture(sampler2D componentTexture, vec3 lonLatLev) {
     float lon = lonLatLev.x;
     float lat = lonLatLev.y;
@@ -57,18 +59,18 @@ float interpolateTexture(sampler2D componentTexture, vec3 lonLatLev) {
     float lon1 = lon0 + 1.0 * interval.x;
     float lat0 = floor(lat / interval.y) * interval.y;
     float lat1 = lat0 + 1.0 * interval.y;
-    // 四个点位的值
-    float lon0_lat0 = getWindComponent(componentTexture, vec3(lon0, lat0, lev));    // 0,0点
-    float lon1_lat0 = getWindComponent(componentTexture, vec3(lon1, lat0, lev));    // 1,0点
-    float lon0_lat1 = getWindComponent(componentTexture, vec3(lon0, lat1, lev));    // 0,1点
-    float lon1_lat1 = getWindComponent(componentTexture, vec3(lon1, lat1, lev));    // 1,1点
-    // 线性混合两个数字
-    float lon_lat0 = mix(lon0_lat0, lon1_lat0, lon - lon0);     // left边混合
-    float lon_lat1 = mix(lon0_lat1, lon1_lat1, lon - lon0);     // right边混合
-    float lon_lat = mix(lon_lat0, lon_lat1, lat - lat0);        // 整体混合
+
+    float lon0_lat0 = getWindComponent(componentTexture, vec3(lon0, lat0, lev));
+    float lon1_lat0 = getWindComponent(componentTexture, vec3(lon1, lat0, lev));
+    float lon0_lat1 = getWindComponent(componentTexture, vec3(lon0, lat1, lev));
+    float lon1_lat1 = getWindComponent(componentTexture, vec3(lon1, lat1, lev));
+
+    float lon_lat0 = mix(lon0_lat0, lon1_lat0, lon - lon0);
+    float lon_lat1 = mix(lon0_lat1, lon1_lat1, lon - lon0);
+    float lon_lat = mix(lon_lat0, lon_lat1, lat - lat0);
     return lon_lat;
 }
-// 使用线性插值计算风速向量。
+
 vec3 linearInterpolation(vec3 lonLatLev) {
     // https://en.wikipedia.org/wiki/Bilinear_interpolation
     float u = interpolateTexture(U, lonLatLev);
@@ -107,11 +109,10 @@ vec3 convertSpeedUnitToLonLat(vec3 lonLatLev, vec3 speed) {
 
     return windVectorInLonLatLev;
 }
-// 使用二阶龙格-库塔方法（Runge-Kutta）计算粒子的速度。
+
 vec3 calculateSpeedByRungeKutta2(vec3 lonLatLev) {
     // see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Second-order_methods_with_two_stages for detail
     const float h = 0.5;
-    float speedScaleFactor = speedFactor * pixelSize;
 
     vec3 y_n = lonLatLev;
     vec3 f_n = linearInterpolation(lonLatLev);
@@ -131,17 +132,13 @@ float calculateWindNorm(vec3 speed) {
 }
 
 void main() {
-    // Cesium ComputeCommand 自动提供 gl_FragCoord，需要转换为纹理坐标
-    vec2 v_textureCoordinates = gl_FragCoord.xy / czm_viewport.zw;
-    
+    speedScaleFactor = speedFactor * pixelSize;
+
     // texture coordinate must be normalized
-    // 取出经纬度 高度
     vec3 lonLatLev = texture(currentParticlesPosition, v_textureCoordinates).rgb;
-    // 计算粒子速度
     vec3 speed = calculateSpeedByRungeKutta2(lonLatLev);
     vec3 speedInLonLat = convertSpeedUnitToLonLat(lonLatLev, speed);
-    
-    float speedScaleFactor = speedFactor * pixelSize;
+
     vec4 particleSpeed = vec4(speedInLonLat, calculateWindNorm(speed / speedScaleFactor));
-    fragColor = particleSpeed;
+    outputColor = particleSpeed;
 }

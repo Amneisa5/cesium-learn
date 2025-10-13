@@ -1,16 +1,14 @@
 class ParticleSystem {
     constructor(context, data, userInput, viewerParameters) {
-        console.log(viewerParameters)
         this.context = context;
         this.data = data;
         this.userInput = userInput;
         this.viewerParameters = viewerParameters;
-        // 数据计算
+
         this.particlesComputing = new ParticlesComputing(
             this.context, this.data,
             this.userInput, this.viewerParameters
         );
-        // 数据渲染
         this.particlesRendering = new ParticlesRendering(
             this.context, this.data,
             this.userInput, this.viewerParameters,
@@ -18,7 +16,7 @@ class ParticleSystem {
         );
     }
 
-    canvasResize (context) {
+    canvasResize(context) {
         this.particlesComputing.destroyParticlesTextures();
         Object.keys(this.particlesComputing.windTextures).forEach((key) => {
             this.particlesComputing.windTextures[key].destroy();
@@ -40,7 +38,7 @@ class ParticleSystem {
         );
     }
 
-    clearFramebuffers () {
+    clearFramebuffers() {
         var clearCommand = new Cesium.ClearCommand({
             color: new Cesium.Color(0.0, 0.0, 0.0, 0.0),
             depth: 1.0,
@@ -54,7 +52,7 @@ class ParticleSystem {
         });
     }
 
-    refreshParticles (maxParticlesChanged) {
+    refreshParticles(maxParticlesChanged) {
         this.clearFramebuffers();
 
         this.particlesComputing.destroyParticlesTextures();
@@ -73,7 +71,7 @@ class ParticleSystem {
         }
     }
 
-    applyUserInput (userInput) {
+    applyUserInput(userInput) {
         var maxParticlesChanged = false;
         if (this.userInput.maxParticles != userInput.maxParticles) {
             maxParticlesChanged = true;
@@ -85,7 +83,7 @@ class ParticleSystem {
         this.refreshParticles(maxParticlesChanged);
     }
 
-    applyViewerParameters (viewerParameters) {
+    applyViewerParameters(viewerParameters) {
         Object.keys(viewerParameters).forEach((key) => {
             this.viewerParameters[key] = viewerParameters[key];
         });

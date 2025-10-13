@@ -7,7 +7,7 @@ uniform sampler2D trailsDepthTexture;
 uniform float fadeOpacity;
 
 in vec2 textureCoordinate;
-out vec4 fragColor;
+out vec4 outputColor;
 
 void main() {
     vec4 pointsColor = texture(segmentsColorTexture, textureCoordinate);
@@ -19,12 +19,12 @@ void main() {
     float trailsDepth = texture(trailsDepthTexture, textureCoordinate).r;
     float globeDepth = czm_unpackDepth(texture(czm_globeDepthTexture, textureCoordinate));
 
-    fragColor = vec4(0.0);
+    outputColor = vec4(0.0);
     if (pointsDepth < globeDepth) {
-        fragColor = fragColor + pointsColor;
+        outputColor = outputColor + pointsColor;
     }
     if (trailsDepth < globeDepth) {
-        fragColor = fragColor + trailsColor;
+        outputColor = outputColor + trailsColor;
     }
     gl_FragDepth = min(pointsDepth, trailsDepth);
 }

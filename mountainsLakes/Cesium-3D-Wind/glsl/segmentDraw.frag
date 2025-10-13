@@ -1,6 +1,6 @@
-out vec4 fragColor;
+out vec4 outputColor;
 
 void main() {
-    const vec4 red = vec4(1.0, 1.0, 1.0, 1.0); // 红色，透明度为1
-    fragColor = red;
+    const vec4 white = vec4(1.0);
+    outputColor = white;
 }
