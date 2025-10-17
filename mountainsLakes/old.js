@@ -768,7 +768,6 @@ class FluidDemo {
     const dynamicCommand = Command.replace(
       `const int textureWidth = ${this._textureWidth};\nconst int textureHeight = ${this._textureHeight};`
     );
-    console.log(this._textureData)
     // 创建独立的TIF高度纹理（只读）
     const tifHeightTexture = RenderUtil.createTexture({
       context: this._viewer.scene.context,
@@ -788,7 +787,6 @@ class FluidDemo {
       pixelDatatype: Cesium.PixelDatatype.FLOAT,
       arrayBufferView: new Float32Array(this._textureWidth * this._textureHeight * 4),
     });
-    console.log("TIF高度纹理:", tifHeightTexture)
     const texB = RenderUtil.createTexture({
       context: this._viewer.scene.context,
       width: this._textureWidth,
@@ -813,10 +811,7 @@ class FluidDemo {
       pixelDatatype: Cesium.PixelDatatype.FLOAT,
       arrayBufferView: new Float32Array(this._textureWidth * this._textureHeight * 4),
     });
-    console.log("流体数据纹理:", texA)
-    console.log("流体数据纹理:", texB)
-    console.log("流体数据纹理:", texC)
-    console.log("流体数据纹理:", texD)
+
     // Render Buffers
     const quadGeometry = RenderUtil.getFullscreenQuad();
     // BufferA

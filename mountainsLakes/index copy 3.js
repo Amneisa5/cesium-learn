@@ -1557,11 +1557,11 @@ const viewer = new Cesium.Viewer("map",
     contextOptions: {
       requestWebgl2: true
     },
-    // terrain: undefined,
+    terrain: undefined,
     // 不加载地球底图
-    // imageryProvider: true,
+    imageryProvider: false,
     // 不加载地形
-    // terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+    terrainProvider: new Cesium.EllipsoidTerrainProvider(),
     // 背景透明
     skyBox: false,
     skyAtmosphere: false,

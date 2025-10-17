@@ -60,6 +60,22 @@ class Wind3D {
         this.scene.primitives.add(this.particleSystem.particlesRendering.primitives.screen);
     }
 
+    setWindPrimitivesVisible (visible) {
+        if (!this.particleSystem) return;
+        var pc = this.particleSystem.particlesComputing && this.particleSystem.particlesComputing.primitives;
+        var pr = this.particleSystem.particlesRendering && this.particleSystem.particlesRendering.primitives;
+        if (pc) {
+            if (pc.calculateSpeed) pc.calculateSpeed.show = visible;
+            if (pc.updatePosition) pc.updatePosition.show = visible;
+            if (pc.postProcessingPosition) pc.postProcessingPosition.show = visible;
+        }
+        if (pr) {
+            if (pr.segments) pr.segments.show = visible;
+            if (pr.trails) pr.trails.show = visible;
+            if (pr.screen) pr.screen.show = visible;
+        }
+    }
+
     updateViewerParameters () {
         // 使用长江口固定范围，而不是相机视野
         this.viewerParameters.lonRange.x = 120.0;  // 120°E
@@ -91,15 +107,12 @@ class Wind3D {
         var globeLayer = userInput.globeLayer;
         switch (globeLayer.type) {
             case "NaturalEarthII": {
-
                 break;
             }
             case "WMS": {
-
                 break;
             }
             case "WorldTerrain": {
-
                 break;
             }
         }
@@ -109,13 +122,14 @@ class Wind3D {
         const that = this;
 
         this.camera.moveStart.addEventListener(function () {
-            that.scene.primitives.show = false;
+            // 仅隐藏风场 primitive，高程保持可见
+            that.setWindPrimitivesVisible(false);
         });
 
         this.camera.moveEnd.addEventListener(function () {
             that.updateViewerParameters();
             that.particleSystem.applyViewerParameters(that.viewerParameters);
-            that.scene.primitives.show = true;
+            that.setWindPrimitivesVisible(true);
         });
 
         var resized = false;
