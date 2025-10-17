@@ -64,20 +64,20 @@ class Panel {
         }
 
         window.onload = function () {
-            var gui = new dat.GUI({ autoPlace: false });
-            gui.add(that, 'maxParticles', 1, 256 * 256, 1).onFinishChange(onParticleSystemOptionsChange);
-            gui.add(that, 'particleHeight', 1, 10000, 1).onFinishChange(onParticleSystemOptionsChange);
-            gui.add(that, 'fadeOpacity', 0.90, 0.999, 0.001).onFinishChange(onParticleSystemOptionsChange);
-            gui.add(that, 'dropRate', 0.0, 0.1).onFinishChange(onParticleSystemOptionsChange);
-            gui.add(that, 'dropRateBump', 0, 0.2).onFinishChange(onParticleSystemOptionsChange);
-            gui.add(that, 'speedFactor', 0.05, 8).onFinishChange(onParticleSystemOptionsChange);
-            gui.add(that, 'lineWidth', 0.01, 16.0).onFinishChange(onParticleSystemOptionsChange);
+            // var gui = new dat.GUI({ autoPlace: false });
+            // gui.add(that, 'maxParticles', 1, 256 * 256, 1).onFinishChange(onParticleSystemOptionsChange);
+            // gui.add(that, 'particleHeight', 1, 10000, 1).onFinishChange(onParticleSystemOptionsChange);
+            // gui.add(that, 'fadeOpacity', 0.90, 0.999, 0.001).onFinishChange(onParticleSystemOptionsChange);
+            // gui.add(that, 'dropRate', 0.0, 0.1).onFinishChange(onParticleSystemOptionsChange);
+            // gui.add(that, 'dropRateBump', 0, 0.2).onFinishChange(onParticleSystemOptionsChange);
+            // gui.add(that, 'speedFactor', 0.05, 8).onFinishChange(onParticleSystemOptionsChange);
+            // gui.add(that, 'lineWidth', 0.01, 16.0).onFinishChange(onParticleSystemOptionsChange);
 
-            gui.add(that, 'layerToShow', layerNames).onFinishChange(onLayerOptionsChange);
+            // gui.add(that, 'layerToShow', layerNames).onFinishChange(onLayerOptionsChange);
 
-            var panelContainer = document.getElementsByClassName('cesium-widget').item(0);
-            gui.domElement.classList.add('myPanel');
-            panelContainer.appendChild(gui.domElement);
+            // var panelContainer = document.getElementsByClassName('cesium-widget').item(0);
+            // gui.domElement.classList.add('myPanel');
+            // panelContainer.appendChild(gui.domElement);
         };
     }
 
