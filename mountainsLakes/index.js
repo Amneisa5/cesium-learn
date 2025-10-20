@@ -863,7 +863,6 @@ class FluidDemo {
     const dynamicCommand = Command.replace(
       `const int textureWidth = ${this._textureWidth};\nconst int textureHeight = ${this._textureHeight};`
     );
-    console.log(this._textureData)
     // 创建独立的TIF高度纹理（只读）
     // 确保纹理数据正确更新
     console.log("纹理数据前几个值:", Array.from(this._textureData.slice(0, 20)).map(v => v.toFixed(3)));

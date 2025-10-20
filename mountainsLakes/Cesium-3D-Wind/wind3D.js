@@ -104,6 +104,9 @@ class Wind3D {
         this.viewer.imageryLayers.removeAll();
         this.viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
 
+        // 隐藏地球
+        this.viewer.scene.globe.show = false;
+
         var globeLayer = userInput.globeLayer;
         switch (globeLayer.type) {
             case "NaturalEarthII": {
