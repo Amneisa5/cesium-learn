@@ -18,7 +18,6 @@ class Wind3D {
         DataProcess.loadData()
             .then((payload) => {
                 if (payload.type === 'json') {
-                    console.log(DataProcess.parseJsonToWindData(payload.json))
                     return DataProcess.parseJsonToWindData(payload.json);
                 }
                 return DataProcess.parseImageDataToWindData(payload.imageData);
@@ -42,7 +41,7 @@ class Wind3D {
                 this.setupEventListeners();
             })
             .catch((error) => {
-                console.error("加载或解析风场图片数据失败:", error);
+                console.error("风场数据加载失败:", error);
             });
 
         this.imageryLayers = this.viewer.imageryLayers;
@@ -50,38 +49,117 @@ class Wind3D {
     }
 
     addPrimitives () {
-        // the order of primitives.add() should respect the dependency of primitives
-        this.scene.primitives.add(this.particleSystem.particlesComputing.primitives.calculateSpeed);
-        this.scene.primitives.add(this.particleSystem.particlesComputing.primitives.updatePosition);
-        this.scene.primitives.add(this.particleSystem.particlesComputing.primitives.postProcessingPosition);
+        if (!this.particleSystem) return;
 
-        this.scene.primitives.add(this.particleSystem.particlesRendering.primitives.segments);
-        this.scene.primitives.add(this.particleSystem.particlesRendering.primitives.trails);
-        this.scene.primitives.add(this.particleSystem.particlesRendering.primitives.screen);
+
+        try {
+            // the order of primitives.add() should respect the dependency of primitives
+            if (this.particleSystem.particlesComputing && this.particleSystem.particlesComputing.primitives) {
+                if (this.particleSystem.particlesComputing.primitives.calculateSpeed) {
+                    this.scene.primitives.add(this.particleSystem.particlesComputing.primitives.calculateSpeed);
+                }
+                if (this.particleSystem.particlesComputing.primitives.updatePosition) {
+                    this.scene.primitives.add(this.particleSystem.particlesComputing.primitives.updatePosition);
+                }
+                if (this.particleSystem.particlesComputing.primitives.postProcessingPosition) {
+                    this.scene.primitives.add(this.particleSystem.particlesComputing.primitives.postProcessingPosition);
+                }
+            }
+
+            if (this.particleSystem.particlesRendering && this.particleSystem.particlesRendering.primitives) {
+                if (this.particleSystem.particlesRendering.primitives.segments) {
+                    this.scene.primitives.add(this.particleSystem.particlesRendering.primitives.segments);
+                }
+                if (this.particleSystem.particlesRendering.primitives.trails) {
+                    this.scene.primitives.add(this.particleSystem.particlesRendering.primitives.trails);
+                }
+                if (this.particleSystem.particlesRendering.primitives.screen) {
+                    this.scene.primitives.add(this.particleSystem.particlesRendering.primitives.screen);
+                }
+            }
+
+        } catch (error) {
+            console.warn('添加粒子图元时出错:', error);
+        }
+    }
+
+    removePrimitives () {
+        if (!this.particleSystem) return;
+
+
+        try {
+            // 移除计算图元
+            if (this.particleSystem.particlesComputing && this.particleSystem.particlesComputing.primitives) {
+                if (this.particleSystem.particlesComputing.primitives.calculateSpeed) {
+                    this.scene.primitives.remove(this.particleSystem.particlesComputing.primitives.calculateSpeed);
+                    this.particleSystem.particlesComputing.primitives.calculateSpeed = null;
+                }
+                if (this.particleSystem.particlesComputing.primitives.updatePosition) {
+                    this.scene.primitives.remove(this.particleSystem.particlesComputing.primitives.updatePosition);
+                    this.particleSystem.particlesComputing.primitives.updatePosition = null;
+                }
+                if (this.particleSystem.particlesComputing.primitives.postProcessingPosition) {
+                    this.scene.primitives.remove(this.particleSystem.particlesComputing.primitives.postProcessingPosition);
+                    this.particleSystem.particlesComputing.primitives.postProcessingPosition = null;
+                }
+            }
+
+            // 移除渲染图元
+            if (this.particleSystem.particlesRendering && this.particleSystem.particlesRendering.primitives) {
+                if (this.particleSystem.particlesRendering.primitives.segments) {
+                    this.scene.primitives.remove(this.particleSystem.particlesRendering.primitives.segments);
+                    this.particleSystem.particlesRendering.primitives.segments = null;
+                }
+                if (this.particleSystem.particlesRendering.primitives.trails) {
+                    this.scene.primitives.remove(this.particleSystem.particlesRendering.primitives.trails);
+                    this.particleSystem.particlesRendering.primitives.trails = null;
+                }
+                if (this.particleSystem.particlesRendering.primitives.screen) {
+                    this.scene.primitives.remove(this.particleSystem.particlesRendering.primitives.screen);
+                    this.particleSystem.particlesRendering.primitives.screen = null;
+                }
+            }
+
+        } catch (error) {
+            console.warn('移除粒子图元时出错:', error);
+        }
     }
 
     setWindPrimitivesVisible (visible) {
         if (!this.particleSystem) return;
-        var pc = this.particleSystem.particlesComputing && this.particleSystem.particlesComputing.primitives;
-        var pr = this.particleSystem.particlesRendering && this.particleSystem.particlesRendering.primitives;
-        if (pc) {
-            if (pc.calculateSpeed) pc.calculateSpeed.show = visible;
-            if (pc.updatePosition) pc.updatePosition.show = visible;
-            if (pc.postProcessingPosition) pc.postProcessingPosition.show = visible;
-        }
-        if (pr) {
-            if (pr.segments) pr.segments.show = visible;
-            if (pr.trails) pr.trails.show = visible;
-            if (pr.screen) pr.screen.show = visible;
+
+        try {
+            var pc = this.particleSystem.particlesComputing && this.particleSystem.particlesComputing.primitives;
+            var pr = this.particleSystem.particlesRendering && this.particleSystem.particlesRendering.primitives;
+
+            if (pc) {
+                if (pc.calculateSpeed && !pc.calculateSpeed.isDestroyed()) pc.calculateSpeed.show = visible;
+                if (pc.updatePosition && !pc.updatePosition.isDestroyed()) pc.updatePosition.show = visible;
+                if (pc.postProcessingPosition && !pc.postProcessingPosition.isDestroyed()) pc.postProcessingPosition.show = visible;
+            }
+            if (pr) {
+                if (pr.segments && !pr.segments.isDestroyed()) pr.segments.show = visible;
+                if (pr.trails && !pr.trails.isDestroyed()) pr.trails.show = visible;
+                if (pr.screen && !pr.screen.isDestroyed()) pr.screen.show = visible;
+            }
+        } catch (error) {
+            console.warn('设置粒子可见性时出错:', error);
         }
     }
 
     updateViewerParameters () {
-        // 使用长江口固定范围，而不是相机视野
-        this.viewerParameters.lonRange.x = 120.0;  // 120°E
-        this.viewerParameters.lonRange.y = 123.5;  // 123.5°E
-        this.viewerParameters.latRange.x = 30.0;   // 30°N
-        this.viewerParameters.latRange.y = 32.5;   // 32.5°N
+        // 使用全局当前显示范围，如果不存在则使用长江口默认范围
+        const currentBounds = window.currentDisplayBounds || {
+            lonMin: 120.0,
+            lonMax: 123.5,
+            latMin: 30.0,
+            latMax: 32.5
+        };
+
+        this.viewerParameters.lonRange.x = currentBounds.lonMin;
+        this.viewerParameters.lonRange.y = currentBounds.lonMax;
+        this.viewerParameters.latRange.x = currentBounds.latMin;
+        this.viewerParameters.latRange.y = currentBounds.latMax;
 
         var pixelSize = this.camera.getPixelSize(
             this.globeBoundingSphere,
@@ -95,7 +173,7 @@ class Wind3D {
             this.viewerParameters.pixelSize = 1.0; // 默认值
         }
 
-        console.log("风场范围设置为长江口区域:",
+        console.log("风场范围设置为:",
             this.viewerParameters.lonRange.x, "-", this.viewerParameters.lonRange.y, "°E,",
             this.viewerParameters.latRange.x, "-", this.viewerParameters.latRange.y, "°N");
     }

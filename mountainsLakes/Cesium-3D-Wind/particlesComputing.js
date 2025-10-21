@@ -41,8 +41,8 @@ class ParticlesComputing {
             })
         };
 
-        // 直接生成粒子位置，限制在长江口区域
-        var particlesArray = this.generateParticlesInYangtzeRegion(userInput.maxParticles);
+        // 直接生成粒子位置，限制在指定区域
+        var particlesArray = this.generateParticlesInYangtzeRegion(userInput.maxParticles, viewerParameters);
         var zeroArray = new Float32Array(4 * userInput.maxParticles).fill(0);
 
         this.particlesTextures = {
@@ -62,18 +62,35 @@ class ParticlesComputing {
     }
 
     // 在长江口区域生成粒子
-    generateParticlesInYangtzeRegion (maxParticles) {
+    generateParticlesInYangtzeRegion (maxParticles, viewerParameters = null) {
         var array = new Float32Array(4 * maxParticles);
 
-        // 长江口区域范围
-        const lonMin = 120.0;   // 120°E
-        const lonMax = 123.5;   // 123.5°E
-        const latMin = 30.0;    // 30°N
-        const latMax = 32.5;    // 32.5°N
+        // 从viewerParameters或全局变量获取范围
+        let lonMin, lonMax, latMin, latMax;
+
+        // 优先使用viewerParameters，然后使用全局变量，最后使用默认值
+        if (viewerParameters && viewerParameters.lonRange && viewerParameters.latRange) {
+            // 从viewerParameters获取范围
+            lonMin = viewerParameters.lonRange.x;
+            lonMax = viewerParameters.lonRange.y;
+            latMin = viewerParameters.latRange.x;
+            latMax = viewerParameters.latRange.y;
+        } else if (window.currentDisplayBounds) {
+            // 从全局变量获取范围
+            lonMin = window.currentDisplayBounds.lonMin;
+            lonMax = window.currentDisplayBounds.lonMax;
+            latMin = window.currentDisplayBounds.latMin;
+            latMax = window.currentDisplayBounds.latMax;
+        } else {
+            // 使用默认长江口范围
+            lonMin = 120.0;
+            lonMax = 123.5;
+            latMin = 30.0;
+            latMax = 32.5;
+        }
         const levMin = 0.0;     // 海平面
         const levMax = 10000.0; // 10km高度
 
-        console.log("在长江口区域生成粒子:", lonMin, "-", lonMax, "°E,", latMin, "-", latMax, "°N");
 
         for (var i = 0; i < maxParticles; i++) {
             array[4 * i] = Cesium.Math.randomBetween(lonMin, lonMax);     // 经度

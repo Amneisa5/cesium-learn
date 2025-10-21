@@ -118,56 +118,6 @@
   <!-- 主程序 -->
   <script src="index.js"></script>
   <!-- 控制面板逻辑 -->
-  <script>
-    // 等待 windSystem 初始化
-    const waitForWindSystem = setInterval(() => {
-      if (typeof windSystem !== 'undefined') {
-        clearInterval(waitForWindSystem);
-
-        // 显示控制面板
-        document.getElementById('windControls').style.display = 'block';
-
-        // 速度控制
-        document.getElementById('speedSlider').addEventListener('input', (e) => {
-          const value = parseFloat(e.target.value);
-          document.getElementById('speedValue').textContent = value.toFixed(1);
-          windSystem.updateOptions({ speedFactor: value });
-        });
-
-        // 轨迹长度控制
-        document.getElementById('fadeSlider').addEventListener('input', (e) => {
-          const value = parseFloat(e.target.value);
-          document.getElementById('fadeValue').textContent = value.toFixed(3);
-          windSystem.updateOptions({ fadeOpacity: value });
-        });
-
-        // 线宽控制
-        document.getElementById('lineSlider').addEventListener('input', (e) => {
-          const value = parseFloat(e.target.value);
-          document.getElementById('lineValue').textContent = value.toFixed(1);
-          windSystem.updateOptions({ lineWidth: value });
-        });
-
-        // 显示/隐藏切换
-        let isVisible = true;
-        document.getElementById('toggleWind').addEventListener('click', (e) => {
-          isVisible = !isVisible;
-          windSystem.setVisible(isVisible);
-          e.target.textContent = isVisible ? '隐藏流场' : '显示流场';
-          e.target.className = isVisible ? '' : 'hidden';
-        });
-
-        // 重播水位动画
-        document.getElementById('resetWater').addEventListener('click', () => {
-          if (typeof fluidDemo !== 'undefined') {
-            fluidDemo.resetWaterAnimation();
-          }
-        });
-
-        console.log('✅ 风场控制面板已激活');
-      }
-    }, 100);
-  </script>
 </body>
 
 </html>

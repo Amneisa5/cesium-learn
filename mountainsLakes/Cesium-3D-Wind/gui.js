@@ -8,11 +8,11 @@ const fileOptions = {
 const defaultParticleSystemOptions = {
     maxParticles: 48 * 48, // 减少数量
     particleHeight: 100.0,
-    fadeOpacity: 0.97, // 增强衰减，轨迹更透明
+    fadeOpacity: 0.95, // 增加衰减，缩短粒子长度
     dropRate: 0.003,
     dropRateBump: 0.01,
     speedFactor: 0.4,
-    lineWidth: 8.0
+    lineWidth: 4.0 // 适中的线宽
 }
 
 const globeLayers = [

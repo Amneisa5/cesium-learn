@@ -67,10 +67,19 @@ var Util = (function () {
 			viewport: options.viewport,
 			depthTest: options.depthTest,
 			depthMask: options.depthMask,
-			blending: options.blending
+			blending: options.blending,
+			cull: options.cull
 		};
 
-		var rawRenderState = Cesium.Appearance.getDefaultRenderState(translucent, closed, existing);
+		// 过滤掉 undefined 值，避免 Cesium 内部错误
+		var filteredExisting = {};
+		for (var key in existing) {
+			if (existing[key] !== undefined) {
+				filteredExisting[key] = existing[key];
+			}
+		}
+
+		var rawRenderState = Cesium.Appearance.getDefaultRenderState(translucent, closed, filteredExisting);
 		return rawRenderState;
 	}
 

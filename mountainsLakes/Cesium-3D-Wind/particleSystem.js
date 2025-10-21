@@ -16,7 +16,7 @@ class ParticleSystem {
         );
     }
 
-    canvasResize(context) {
+    canvasResize (context) {
         this.particlesComputing.destroyParticlesTextures();
         Object.keys(this.particlesComputing.windTextures).forEach((key) => {
             this.particlesComputing.windTextures[key].destroy();
@@ -38,7 +38,7 @@ class ParticleSystem {
         );
     }
 
-    clearFramebuffers() {
+    clearFramebuffers () {
         var clearCommand = new Cesium.ClearCommand({
             color: new Cesium.Color(0.0, 0.0, 0.0, 0.0),
             depth: 1.0,
@@ -52,10 +52,15 @@ class ParticleSystem {
         });
     }
 
-    refreshParticles(maxParticlesChanged) {
+    refreshParticles (maxParticlesChanged) {
+
+        // 清除帧缓冲区
         this.clearFramebuffers();
 
+        // 销毁旧的粒子纹理
         this.particlesComputing.destroyParticlesTextures();
+
+        // 重新创建粒子纹理（使用新的范围）
         this.particlesComputing.createParticlesTextures(this.context, this.userInput, this.viewerParameters);
 
         if (maxParticlesChanged) {
@@ -69,9 +74,10 @@ class ParticleSystem {
             });
             this.particlesRendering.primitives.segments.commandToExecute.vertexArray = vertexArray;
         }
+
     }
 
-    applyUserInput(userInput) {
+    applyUserInput (userInput) {
         var maxParticlesChanged = false;
         if (this.userInput.maxParticles != userInput.maxParticles) {
             maxParticlesChanged = true;
@@ -83,7 +89,7 @@ class ParticleSystem {
         this.refreshParticles(maxParticlesChanged);
     }
 
-    applyViewerParameters(viewerParameters) {
+    applyViewerParameters (viewerParameters) {
         Object.keys(viewerParameters).forEach((key) => {
             this.viewerParameters[key] = viewerParameters[key];
         });

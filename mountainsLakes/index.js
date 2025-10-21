@@ -859,13 +859,19 @@ class FluidDemo {
     this.initShaderToy();
   }
   initShaderToy () {
-    // 动态设置textureSize，使用较大的尺寸作为着色器网格
+    // 动态设置textureSize，使用裁剪后的尺寸
     const dynamicCommand = Command.replace(
       `const int textureWidth = ${this._textureWidth};\nconst int textureHeight = ${this._textureHeight};`
     );
     // 创建独立的TIF高度纹理（只读）
-    // 确保纹理数据正确更新
-    console.log("纹理数据前几个值:", Array.from(this._textureData.slice(0, 20)).map(v => v.toFixed(3)));
+
+    // 使用当前显示范围
+    const lonLatBounds = this._lonLatBounds || {
+      lonMin: 120.0,
+      lonMax: 123.5,
+      latMin: 30.0,
+      latMax: 32.5
+    };
 
     const tifHeightTexture = RenderUtil.createTexture({
       context: this._viewer.scene.context,
@@ -891,7 +897,6 @@ class FluidDemo {
       pixelDatatype: Cesium.PixelDatatype.FLOAT,
       arrayBufferView: new Float32Array(this._textureWidth * this._textureHeight * 4),
     });
-    console.log("TIF高度纹理:", tifHeightTexture)
     const texB = RenderUtil.createTexture({
       context: this._viewer.scene.context,
       width: this._textureWidth,
@@ -916,10 +921,6 @@ class FluidDemo {
       pixelDatatype: Cesium.PixelDatatype.FLOAT,
       arrayBufferView: new Float32Array(this._textureWidth * this._textureHeight * 4),
     });
-    console.log("流体数据纹理:", texA)
-    console.log("流体数据纹理:", texB)
-    console.log("流体数据纹理:", texC)
-    console.log("流体数据纹理:", texD)
     // Render Buffers
     const quadGeometry = RenderUtil.getFullscreenQuad();
     // BufferA
@@ -1054,38 +1055,19 @@ class FluidDemo {
       },
     });
 
-    // Render Box
-    // let terrainMap = this._viewer.scene.frameState.context.defaultTexture;
-    // Cesium.Resource.fetchImage({
-    //   url: 'terrain.jpg',
-    // }).then((image) => {
-    //   terrainMap = new Cesium.Texture({
-    //     context: this._viewer.scene.frameState.context,
-    //     source: image,
-    //     sampler: new Cesium.Sampler({
-    //       wrapS: Cesium.TextureWrap.REPEAT,
-    //       wrapT: Cesium.TextureWrap.REPEAT,
-    //       magnificationFilter: Cesium.TextureMagnificationFilter.LINEAR,
-    //       minificationFilter:
-    //         Cesium.TextureMinificationFilter.LINEAR_MIPMAP_LINEAR,
-    //     }),
-    //   });
-    //   terrainMap.generateMipmap();
-    // });
-
-    // Render Command - 根据TIF文件的地理范围调整几何体尺寸
+    // Render Command - 根据指定的地理范围调整几何体尺寸
     // 计算地理范围的实际距离
-    const lonRange = this._lonLatBounds.lonMax - this._lonLatBounds.lonMin; // 123.5 - 120 = 3.5度
-    const latRange = this._lonLatBounds.latMax - this._lonLatBounds.latMin; // 32.5 - 30 = 2.5度
+    const lonRange = lonLatBounds.lonMax - lonLatBounds.lonMin;
+    const latRange = lonLatBounds.latMax - lonLatBounds.latMin;
 
-    // 将经纬度跨度转换为米，精确匹配长江口范围尺寸
-    const lonCenter = (this._lonLatBounds.lonMin + this._lonLatBounds.lonMax) / 2;
-    const latCenter = (this._lonLatBounds.latMin + this._lonLatBounds.latMax) / 2;
+    // 将经纬度跨度转换为米，精确匹配指定范围尺寸
+    const lonCenter = (lonLatBounds.lonMin + lonLatBounds.lonMax) / 2;
+    const latCenter = (lonLatBounds.latMin + lonLatBounds.latMax) / 2;
 
-    const cLonMin = Cesium.Cartographic.fromDegrees(this._lonLatBounds.lonMin, latCenter);
-    const cLonMax = Cesium.Cartographic.fromDegrees(this._lonLatBounds.lonMax, latCenter);
-    const cLatMin = Cesium.Cartographic.fromDegrees(lonCenter, this._lonLatBounds.latMin);
-    const cLatMax = Cesium.Cartographic.fromDegrees(lonCenter, this._lonLatBounds.latMax);
+    const cLonMin = Cesium.Cartographic.fromDegrees(lonLatBounds.lonMin, latCenter);
+    const cLonMax = Cesium.Cartographic.fromDegrees(lonLatBounds.lonMax, latCenter);
+    const cLatMin = Cesium.Cartographic.fromDegrees(lonCenter, lonLatBounds.latMin);
+    const cLatMax = Cesium.Cartographic.fromDegrees(lonCenter, lonLatBounds.latMax);
 
     const geodesicH = new Cesium.EllipsoidGeodesic(cLonMin, cLonMax);
     const geodesicV = new Cesium.EllipsoidGeodesic(cLatMin, cLatMax);
@@ -1096,14 +1078,6 @@ class FluidDemo {
     const verticalScaleFactor = 1; // 放大垂直夸张，可调：0.15 ~ 0.5
     const depth = Math.max(2000.0, Math.min(width, height) * verticalScaleFactor);
 
-    console.log("地理范围:", this._lonLatBounds.lonMin, "-", this._lonLatBounds.lonMax, "°E,",
-      this._lonLatBounds.latMin, "-", this._lonLatBounds.latMax, "°N");
-    console.log("地理跨度:", lonRange, "°经度,", latRange, "°纬度");
-    console.log("几何体实际米制尺寸:", Math.round(width), "m ×", Math.round(height), "m ×", depth, "m");
-    console.log("地理中心点:", lonCenter, "°E,", latCenter, "°N");
-    console.log("iResolution:", this._resolution.x, "x", this._resolution.y);
-    console.log("terrainWidth:", this._textureWidth, "terrainHeight:", this._textureHeight);
-    console.log("动态替换后的Command片段:", dynamicCommand.substring(0, 200));
 
     // 保持垂直使用 Z=depth，南北向映射到 Y=height，东西向映射到 X=width
     const modelMatrix = generateModelMatrix(
@@ -1212,20 +1186,25 @@ class FluidDemo {
     });
 
     // 显示高程模型（恢复渲染顺序）
+    // 保存所有图元引用，以便后续移除
+    this._bufferA = Buffer_A;
+    this._bufferB = Buffer_B;
+    this._bufferC = Buffer_C;
+    this._bufferD = Buffer_D;
+    this._terrainPrimitive = fluidCommand;
+
     this._viewer.scene.primitives.add(Buffer_A);
     this._viewer.scene.primitives.add(Buffer_B);
     this._viewer.scene.primitives.add(Buffer_C);
     this._viewer.scene.primitives.add(Buffer_D);
     this._viewer.scene.primitives.add(fluidCommand);
 
-    console.log('✅ 高程模型已显示，同时渲染流场');
   }
 
   // 重置水位上升动画
   resetWaterAnimation () {
     this._waterRiseProgress = 0.0;
     this._animationStartTime = Date.now();
-    console.log('水位上升动画已重置');
   }
 
   // 调试方法：将TIF纹理输出为图片
@@ -1397,34 +1376,106 @@ class FluidDemo {
   }
 };
 // viewer.camera.lookAt(boxCenter, new Cesium.Cartesian3(0.0, -10000.0, 5000.0));
-const readGeoTif = async () => {
+const readGeoTif = async (lonLatBounds = null) => {
   const terrain = "gebco_2023_n32.5_s30.0_w120.0_e123.5.tif";
   const rawTiff = await GeoTIFF.fromUrl(terrain);
   const tifImage = await rawTiff.getImage();
   const tifWidth = tifImage.getWidth();
   const tifHeight = tifImage.getHeight();
-  console.log("TIF尺寸:", tifWidth, "x", tifHeight);
 
-  // 使用TIF的真实尺寸
-  console.log("使用TIF真实尺寸:", tifWidth, "x", tifHeight);
+  // 如果没有指定范围，使用默认范围
+  const bounds = lonLatBounds || {
+    lonMin: 120.0,
+    lonMax: 123.5,
+    latMin: 30.0,
+    latMax: 32.5
+  };
+
+
+  // 计算裁剪区域
+  const lonRange = bounds.lonMax - bounds.lonMin;
+  const latRange = bounds.latMax - bounds.latMin;
+
+  // 计算在TIF图像中的像素范围
+  const startX = Math.max(0, Math.floor((bounds.lonMin - 120.0) / 3.5 * tifWidth));
+  const endX = Math.min(tifWidth, Math.ceil((bounds.lonMax - 120.0) / 3.5 * tifWidth));
+  const startY = Math.max(0, Math.floor((32.5 - bounds.latMax) / 2.5 * tifHeight));
+  const endY = Math.min(tifHeight, Math.ceil((32.5 - bounds.latMin) / 2.5 * tifHeight));
+
+
+  // 确保裁剪区域有效
+  if (startX >= endX || startY >= endY || endX <= 0 || endY <= 0) {
+    console.error("无效的裁剪区域:", startX, endX, startY, endY);
+    throw new Error("裁剪区域无效");
+  }
 
   // 读取TIF数据
   const tifData = await tifImage.readRasters({ interleave: true });
 
-  // 直接使用TIF数据，不进行采样
-  textureData = new Float32Array(tifWidth * tifHeight * 4);
+  // 如果用户指定了范围，则进行数据裁剪
+  let croppedWidth, croppedHeight, croppedData;
 
-  // 计算高度范围用于归一化，以零点为基准
-  let minHeight = tifData[0];
-  let maxHeight = tifData[0];
-  for (let i = 1; i < tifData.length; i++) {
-    if (tifData[i] < minHeight) minHeight = tifData[i];
-    if (tifData[i] > maxHeight) maxHeight = tifData[i];
+  if (bounds.lonMin !== 120.0 || bounds.lonMax !== 123.5 || bounds.latMin !== 30.0 || bounds.latMax !== 32.5) {
+    // 手动裁剪数据
+    croppedData = [];
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        const index = y * tifWidth + x;
+        if (index >= 0 && index < tifData.length) {
+          croppedData.push(tifData[index]);
+        } else {
+          croppedData.push(0);
+        }
+      }
+    }
+    croppedWidth = endX - startX;
+    croppedHeight = endY - startY;
+  } else {
+    croppedData = tifData;
+    croppedWidth = tifWidth;
+    croppedHeight = tifHeight;
   }
 
-  // 检查TIF数据是否包含海平面以下的数据
-  console.log("原始高度范围:", minHeight, "到", maxHeight, "米");
-  console.log("海平面(0米)是否在数据范围内:", minHeight <= 0 && maxHeight >= 0);
+  // 检查读取的数据是否有效
+  if (!croppedData || croppedData.length === 0) {
+    console.error("TIF数据读取失败");
+    throw new Error("TIF数据读取失败");
+  }
+
+  // 使用裁剪后的数据
+  textureData = new Float32Array(croppedWidth * croppedHeight * 4);
+
+  // 计算高度范围用于归一化，以零点为基准
+  let minHeight = croppedData[0];
+  let maxHeight = croppedData[0];
+  for (let i = 1; i < croppedData.length; i++) {
+    // 检查数据是否有效
+    if (croppedData[i] !== undefined && croppedData[i] !== null && !isNaN(croppedData[i])) {
+      if (croppedData[i] < minHeight) minHeight = croppedData[i];
+      if (croppedData[i] > maxHeight) maxHeight = croppedData[i];
+    }
+  }
+
+  // 输出高程数据统计信息
+  console.log('=== 高程数据统计 ===');
+  console.log('数据点总数:', croppedData.length);
+  console.log('最小高度:', minHeight.toFixed(2), '米');
+  console.log('最大高度:', maxHeight.toFixed(2), '米');
+  console.log('高度跨度:', (maxHeight - minHeight).toFixed(2), '米');
+  console.log('海平面(0米)是否在数据范围内:', minHeight <= 0 && maxHeight >= 0);
+
+  // 统计海平面上下数据点分布
+  let aboveSeaLevel = 0, belowSeaLevel = 0, atSeaLevel = 0;
+  for (let i = 0; i < croppedData.length; i++) {
+    if (croppedData[i] > 0.1) aboveSeaLevel++;
+    else if (croppedData[i] < -0.1) belowSeaLevel++;
+    else atSeaLevel++;
+  }
+  console.log('海平面以上点数:', aboveSeaLevel, '(', (aboveSeaLevel / croppedData.length * 100).toFixed(1), '%)');
+  console.log('海平面以下点数:', belowSeaLevel, '(', (belowSeaLevel / croppedData.length * 100).toFixed(1), '%)');
+  console.log('海平面附近点数:', atSeaLevel, '(', (atSeaLevel / croppedData.length * 100).toFixed(1), '%)');
+  console.log('==================');
+
 
   // 如果数据中没有海平面以下的数据，我们需要调整归一化策略
   let seaLevel, maxRange;
@@ -1432,19 +1483,16 @@ const readGeoTif = async () => {
     // 如果所有数据都在海平面以上，以最低点为基准
     seaLevel = minHeight;
     maxRange = maxHeight - minHeight;
-    console.log("所有数据都在海平面以上，以最低点为基准");
   } else if (maxHeight < 0) {
     // 如果所有数据都在海平面以下，以最高点为基准
     seaLevel = maxHeight;
     maxRange = seaLevel - minHeight;
-    console.log("所有数据都在海平面以下，以最高点为基准");
   } else {
     // 数据跨越海平面，使用海平面为基准
     seaLevel = 15;
     const maxHeightAboveSea = maxHeight - seaLevel;
     const maxDepthBelowSea = seaLevel - minHeight;
     maxRange = Math.max(maxHeightAboveSea, maxDepthBelowSea);
-    console.log("数据跨越海平面，使用海平面为基准");
   }
 
   // 计算海平面对应的归一化高度值
@@ -1454,16 +1502,28 @@ const readGeoTif = async () => {
   } else {
     this._seaLevelNormalized = (0 - seaLevel) / (2 * maxRange) + 0.5;
   }
-  console.log("海平面归一化高度值:", this._seaLevelNormalized);
 
-  // 直接使用TIF数据，从底部开始读取以匹配GLSL坐标系统
-  for (let y = 0; y < tifHeight; y++) {
-    for (let x = 0; x < tifWidth; x++) {
+  // 输出归一化参数信息
+  console.log('=== 归一化参数 ===');
+  console.log('海平面高度:', seaLevel.toFixed(2), '米');
+  console.log('最大范围:', maxRange.toFixed(2), '米');
+  console.log('归一化海平面值:', this._seaLevelNormalized.toFixed(3));
+  console.log('归一化后高度范围: 0.0 到 1.0');
+  console.log('================');
+
+  // 使用裁剪后的TIF数据，从底部开始读取以匹配GLSL坐标系统
+  for (let y = 0; y < croppedHeight; y++) {
+    for (let x = 0; x < croppedWidth; x++) {
       // 从底部开始读取，匹配GLSL的UV坐标系统
-      const tifIndex = (tifHeight - 1 - y) * tifWidth + x;
+      const tifIndex = (croppedHeight - 1 - y) * croppedWidth + x;
 
       // 获取原始高度值
-      const rawHeight = tifData[tifIndex];
+      const rawHeight = croppedData[tifIndex];
+
+      // 检查数据是否有效
+      if (rawHeight === undefined || rawHeight === null || isNaN(rawHeight)) {
+        continue; // 跳过无效数据
+      }
 
       // 根据数据范围进行归一化
       let normalizedHeight, relativeHeight;
@@ -1490,16 +1550,12 @@ const readGeoTif = async () => {
         // 将水深归一化到0-1范围，增加强度
         initialWater = Math.min(waterDepth / 50.0, 0.5); // 增加水位强度，最大0.5
 
-        // 调试：输出一些海底区域的水位信息
-        if (y === Math.floor(tifHeight / 2) && x === Math.floor(tifWidth / 2)) {
-          console.log(`海底区域 (${x}, ${y}): 原始高度=${rawHeight.toFixed(2)}m, 水深=${waterDepth.toFixed(2)}m, 初始水位=${initialWater.toFixed(3)}`);
-        }
       } else if (rawHeight <= 10) {
         // 浅水区域（0-10米）：也有少量水位
         initialWater = 0.1;
       }
 
-      const index = (y * tifWidth + x) * 4;
+      const index = (y * croppedWidth + x) * 4;
       textureData[index] = normalizedHeight;     // 归一化高度
       textureData[index + 1] = initialWater;     // 初始水位（海底区域有更多水）
       textureData[index + 2] = relativeHeight;   // 相对海平面的高度
@@ -1507,28 +1563,15 @@ const readGeoTif = async () => {
     }
   }
 
-  // 检查几个样本点的实际数据
-  for (let i = 0; i < 5; i++) {
-    const x = Math.floor(tifWidth * 0.5);
-    const y = Math.floor(tifHeight * (0.2 + i * 0.15));
-    const index = (y * tifWidth + x) * 4;
-    const rawHeight = tifData[(tifHeight - 1 - y) * tifWidth + x];
-    const normalizedHeight = textureData[index];
-    const relativeHeight = textureData[index + 2];
-    console.log(`  点(${x},${y}): 原始=${rawHeight.toFixed(1)}m, 归一化=${normalizedHeight.toFixed(3)}, 相对=${relativeHeight.toFixed(3)}`);
-  }
 
 
-  // 添加流体系统，使用TIF真实尺寸
-  const fluid = new FluidDemo(viewer, tifWidth, tifHeight, textureData, { lonMin: 120, lonMax: 123.5, latMin: 30, latMax: 32.5 });
+  // 添加流体系统，使用裁剪后的尺寸
+  const fluid = new FluidDemo(viewer, croppedWidth, croppedHeight, textureData, bounds);
 
-  // 将 fluid 实例暴露到全局，方便控制台调用
   window.fluidDemo = fluid;
 
   // 添加风场粒子系统
-  console.log('🌬️ 准备初始化风场系统...');
   setTimeout(() => {
-    console.log('🌬️ 开始初始化风场系统');
     try {
       var panel = new Panel();
       var wind3D = new Wind3D(
@@ -1536,11 +1579,13 @@ const readGeoTif = async () => {
         panel,
       );
 
+      // 保存到全局变量以便后续更新
+      window.windSystem = wind3D;
+
     } catch (error) {
-      console.error('❌ 风场系统初始化失败:', error);
-      console.error('错误堆栈:', error.stack);
+      console.error('风场系统初始化失败:', error);
     }
-  }, 1000); // 延迟1秒等待地形加载完成
+  }, 1000);
 }
 const viewer = new Cesium.Viewer("map",
   {
@@ -1569,6 +1614,311 @@ const viewer = new Cesium.Viewer("map",
     geocoder: false,
   });
 
+// 全局变量存储当前显示范围
+window.currentDisplayBounds = {
+  lonMin: 120.0,
+  lonMax: 123.5,
+  latMin: 30.0,
+  latMax: 32.5
+};
+
+// 调试：确保全局变量被正确初始化
+console.log('全局变量初始化:', window.currentDisplayBounds);
+
+// 创建经纬度输入面板
+const createLocationInputPanel = () => {
+  const controlPanel = document.createElement('div');
+  controlPanel.style.position = 'absolute';
+  controlPanel.style.top = '10px';
+  controlPanel.style.left = '10px';
+  controlPanel.style.background = 'rgba(0,0,0,0.8)';
+  controlPanel.style.color = 'white';
+  controlPanel.style.padding = '15px';
+  controlPanel.style.borderRadius = '8px';
+  controlPanel.style.fontFamily = 'Arial, sans-serif';
+  controlPanel.style.minWidth = '300px';
+  controlPanel.style.zIndex = '1000';
+
+  controlPanel.innerHTML = `
+    <h3>🗺️ 区域控制</h3>
+    <div style="margin-bottom: 10px;">
+      <label>经度范围:</label>
+      <div style="display: flex; gap: 5px; margin-top: 5px;">
+        <input type="number" id="lonMin" placeholder="最小经度" value="120.0" step="0.1" style="flex: 1; padding: 5px;">
+        <span>至</span>
+        <input type="number" id="lonMax" placeholder="最大经度" value="123.5" step="0.1" style="flex: 1; padding: 5px;">
+      </div>
+    </div>
+    <div style="margin-bottom: 10px;">
+      <label>纬度范围:</label>
+      <div style="display: flex; gap: 5px; margin-top: 5px;">
+        <input type="number" id="latMin" placeholder="最小纬度" value="30.0" step="0.1" style="flex: 1; padding: 5px;">
+        <span>至</span>
+        <input type="number" id="latMax" placeholder="最大纬度" value="32.5" step="0.1" style="flex: 1; padding: 5px;">
+      </div>
+    </div>
+    <div style="margin-bottom: 15px;">
+      <button onclick="updateDisplayArea()" style="width: 100%; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">更新显示区域</button>
+    </div>
+    <div style="margin-bottom: 10px;">
+      <button onclick="resetToFullArea()" style="width: 100%; padding: 8px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">重置为全区域</button>
+    </div>
+    <div style="font-size: 12px; color: #ccc;">
+      <p>当前范围:</p>
+      <p id="currentRange">经度: 120.0° - 123.5° | 纬度: 30.0° - 32.5°</p>
+    </div>
+  `;
+
+  document.body.appendChild(controlPanel);
+
+  // 添加全局函数
+  window.updateDisplayArea = updateDisplayArea;
+  window.resetToFullArea = resetToFullArea;
+  window.fitToArea = fitToArea;
+  window.clearAllPrimitives = clearAllPrimitives;
+
+  // 添加清除粒子图元的函数
+  window.clearWindPrimitives = () => {
+    if (window.windSystem) {
+      window.windSystem.removePrimitives();
+      console.log('粒子图元已清除');
+    } else {
+      console.log('风场系统未初始化');
+    }
+  };
+
+  // 添加检查和修复全局变量的函数
+  window.checkGlobalBounds = () => {
+    if (!window.currentDisplayBounds) {
+      console.log('修复undefined的currentDisplayBounds');
+      window.currentDisplayBounds = {
+        lonMin: 120.0,
+        lonMax: 123.5,
+        latMin: 30.0,
+        latMax: 32.5
+      };
+    }
+    console.log('当前全局范围:', window.currentDisplayBounds);
+    return window.currentDisplayBounds;
+  };
+
+  // 添加调整粒子参数的函数
+  window.adjustParticleOpacity = (opacity = 0.95) => {
+    if (window.windSystem && window.windSystem.particleSystem) {
+      window.windSystem.particleSystem.userInput.fadeOpacity = opacity;
+      window.windSystem.particleSystem.applyUserInput(window.windSystem.particleSystem.userInput);
+    }
+  };
+
+  // 添加调整粒子线宽的函数
+  window.adjustParticleLineWidth = (lineWidth = 4.0) => {
+    if (window.windSystem && window.windSystem.particleSystem) {
+      window.windSystem.particleSystem.userInput.lineWidth = lineWidth;
+      window.windSystem.particleSystem.applyUserInput(window.windSystem.particleSystem.userInput);
+    }
+  };
+
+  // 添加设置纯白色粒子的函数
+  window.setWhiteParticles = () => {
+    if (window.windSystem && window.windSystem.particleSystem) {
+      window.windSystem.particleSystem.userInput.fadeOpacity = 0.92;
+      window.windSystem.particleSystem.userInput.lineWidth = 4.0;
+      window.windSystem.particleSystem.applyUserInput(window.windSystem.particleSystem.userInput);
+    }
+  };
+
+  // 添加设置短粒子的函数
+  window.setShortParticles = () => {
+    if (window.windSystem && window.windSystem.particleSystem) {
+      window.windSystem.particleSystem.userInput.fadeOpacity = 0.90;
+      window.windSystem.particleSystem.userInput.lineWidth = 4.0;
+      window.windSystem.particleSystem.applyUserInput(window.windSystem.particleSystem.userInput);
+    }
+  };
+
+
+  // 添加测试函数
+  window.testWindRange = () => {
+    if (window.windSystem && window.windSystem.particleSystem) {
+      window.windSystem.updateViewerParameters();
+      window.windSystem.particleSystem.applyViewerParameters(window.windSystem.viewerParameters);
+    }
+  };
+
+  // 添加强制更新粒子范围的函数
+  window.forceUpdateParticles = async () => {
+    if (window.windSystem && window.windSystem.particleSystem) {
+      try {
+        window.windSystem.removePrimitives();
+        await new Promise(resolve => setTimeout(resolve, 100));
+        window.windSystem.particleSystem.viewerParameters.lonRange.x = window.currentDisplayBounds.lonMin;
+        window.windSystem.particleSystem.viewerParameters.lonRange.y = window.currentDisplayBounds.lonMax;
+        window.windSystem.particleSystem.viewerParameters.latRange.x = window.currentDisplayBounds.latMin;
+        window.windSystem.particleSystem.viewerParameters.latRange.y = window.currentDisplayBounds.latMax;
+        window.windSystem.particleSystem.refreshParticles(false);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        window.windSystem.addPrimitives();
+      } catch (error) {
+        console.error('强制更新粒子时出错:', error);
+      }
+    }
+  };
+}
+
+// 更新显示区域
+const updateDisplayArea = () => {
+  const lonMin = parseFloat(document.getElementById('lonMin').value);
+  const lonMax = parseFloat(document.getElementById('lonMax').value);
+  const latMin = parseFloat(document.getElementById('latMin').value);
+  const latMax = parseFloat(document.getElementById('latMax').value);
+
+  if (isNaN(lonMin) || isNaN(lonMax) || isNaN(latMin) || isNaN(latMax)) {
+    alert('请输入有效的经纬度数值');
+    return;
+  }
+
+  if (lonMin >= lonMax || latMin >= latMax) {
+    alert('最小经纬度必须小于最大经纬度');
+    return;
+  }
+
+  window.currentDisplayBounds = {
+    lonMin: lonMin,
+    lonMax: lonMax,
+    latMin: latMin,
+    latMax: latMax
+  };
+  updateCurrentRangeDisplay();
+
+  recreateTerrainAndHeatmap();
+}
+
+// 重置为全区域
+const resetToFullArea = () => {
+  window.currentDisplayBounds = {
+    lonMin: 120.0,
+    lonMax: 123.5,
+    latMin: 30.0,
+    latMax: 32.5
+  };
+
+  // 更新输入框
+  document.getElementById('lonMin').value = window.currentDisplayBounds.lonMin;
+  document.getElementById('lonMax').value = window.currentDisplayBounds.lonMax;
+  document.getElementById('latMin').value = window.currentDisplayBounds.latMin;
+  document.getElementById('latMax').value = window.currentDisplayBounds.latMax;
+
+  updateCurrentRangeDisplay();
+  recreateTerrainAndHeatmap();
+}
+
+// 缩放到指定区域
+const fitToArea = () => {
+  const lonCenter = (window.currentDisplayBounds.lonMin + window.currentDisplayBounds.lonMax) / 2;
+  const latCenter = (window.currentDisplayBounds.latMin + window.currentDisplayBounds.latMax) / 2;
+
+  const lonRange = window.currentDisplayBounds.lonMax - window.currentDisplayBounds.lonMin;
+  const latRange = window.currentDisplayBounds.latMax - window.currentDisplayBounds.latMin;
+
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(lonCenter, latCenter, 50000),
+    orientation: {
+      heading: Cesium.Math.toRadians(0),
+      pitch: Cesium.Math.toRadians(-45),
+      roll: 0
+    }
+  });
+}
+
+// 更新当前范围显示
+const updateCurrentRangeDisplay = () => {
+  const rangeElement = document.getElementById('currentRange');
+  if (rangeElement) {
+    rangeElement.textContent = `经度: ${window.currentDisplayBounds.lonMin}° - ${window.currentDisplayBounds.lonMax}° | 纬度: ${window.currentDisplayBounds.latMin}° - ${window.currentDisplayBounds.latMax}°`;
+  }
+}
+
+// 清理所有现有图元
+const clearAllPrimitives = () => {
+  if (window.fluidDemo) {
+
+    const primitives = [
+      window.fluidDemo._bufferA,
+      window.fluidDemo._bufferB,
+      window.fluidDemo._bufferC,
+      window.fluidDemo._bufferD,
+      window.fluidDemo._terrainPrimitive
+    ];
+
+    primitives.forEach(primitive => {
+      if (primitive) {
+        try {
+          viewer.scene.primitives.remove(primitive);
+        } catch (error) {
+          console.warn('移除图元时出错:', error);
+        }
+      }
+    });
+
+    window.fluidDemo._bufferA = null;
+    window.fluidDemo._bufferB = null;
+    window.fluidDemo._bufferC = null;
+    window.fluidDemo._bufferD = null;
+    window.fluidDemo._terrainPrimitive = null;
+  }
+};
+
+// 重新创建地形
+const recreateTerrainAndHeatmap = async () => {
+  // 清理所有现有图元
+  clearAllPrimitives();
+
+  // 等待一帧确保清理完成
+  await new Promise(resolve => setTimeout(resolve, 100));
+
+  // 重新加载TIF数据
+  await readGeoTif(window.currentDisplayBounds);
+
+  // 更新风场范围
+  if (window.windSystem) {
+
+    try {
+      // 先移除旧的粒子图元
+      window.windSystem.removePrimitives();
+
+      // 等待一帧确保移除完成
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // 更新风场参数
+      window.windSystem.updateViewerParameters();
+
+      // 强制更新粒子范围
+      if (window.windSystem.particleSystem) {
+
+        // 直接更新粒子系统的viewerParameters
+        window.windSystem.particleSystem.viewerParameters.lonRange.x = window.currentDisplayBounds.lonMin;
+        window.windSystem.particleSystem.viewerParameters.lonRange.y = window.currentDisplayBounds.lonMax;
+        window.windSystem.particleSystem.viewerParameters.latRange.x = window.currentDisplayBounds.latMin;
+        window.windSystem.particleSystem.viewerParameters.latRange.y = window.currentDisplayBounds.latMax;
+
+        // 强制刷新粒子
+        window.windSystem.particleSystem.refreshParticles(false);
+      }
+
+      // 等待一帧确保粒子刷新完成
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // 重新添加粒子图元
+      window.windSystem.addPrimitives();
+
+    } catch (error) {
+      console.error('更新风场范围时出错:', error);
+    }
+  }
+
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   readGeoTif();
+  createLocationInputPanel();
 })

@@ -15,8 +15,10 @@ void main() {
 
     trailsColor = floor(fadeOpacity * 255.0 * trailsColor) / 255.0; // make sure the trailsColor will be strictly decreased
 
-    // 合成并整体降低透明度
+    // 合成颜色，确保纯白色输出
     vec4 color = pointsColor + trailsColor;
-    color.a *= 0.7;
+    // 强制设置为纯白色，保持透明度
+    color.rgb = vec3(1.0, 1.0, 1.0);
+    color.a = min(color.a, 1.0); // 确保透明度不超过1.0
     outputColor = color;
 }
