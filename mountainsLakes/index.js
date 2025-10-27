@@ -1852,6 +1852,65 @@ window.currentDisplayBounds = {
 // 调试：确保全局变量被正确初始化
 console.log('全局变量初始化:', window.currentDisplayBounds);
 
+// 全局变量：存储模型实体
+window.modelEntity = null;
+window.rightClickHandler = null;
+
+// 设置全局右键旋转控制
+const setupRightClickRotation = () => {
+  viewer.scene.screenSpaceCameraController.zoomEventTypes = [Cesium.CameraEventType.WHEEL, Cesium.CameraEventType.PINCH];
+  viewer.scene.screenSpaceCameraController.rotateEventTypes = [Cesium.CameraEventType.RIGHT_DRAG]
+};
+
+// 延迟设置右键旋转，确保viewer已完全初始化
+setTimeout(() => {
+  setupRightClickRotation();
+}, 100);
+
+// 加载 dx.glb 模型（已隐藏）
+const loadModel = async () => {
+  try {
+    const lonCenter = (window.currentDisplayBounds.lonMin + window.currentDisplayBounds.lonMax) / 2;
+    const latCenter = (window.currentDisplayBounds.latMin + window.currentDisplayBounds.latMax) / 2;
+    const height = 0;
+
+    // 如果模型已存在，先移除
+    if (window.modelEntity) {
+      viewer.entities.remove(window.modelEntity);
+    }
+
+    window.modelEntity = viewer.entities.add({
+      name: 'DX Model',
+      position: Cesium.Cartesian3.fromDegrees(lonCenter, latCenter, height),
+      model: {
+        uri: 'models/dx.glb',
+        minimumPixelSize: 128,
+        maximumScale: 20000,
+      },
+      show: false, // 隐藏模型
+    });
+
+    console.log('模型已加载（已隐藏）:', window.modelEntity);
+
+  } catch (error) {
+    console.error('模型加载失败:', error);
+  }
+};
+
+// 更新模型位置
+const updateModelPosition = () => {
+  if (window.modelEntity) {
+    const lonCenter = (window.currentDisplayBounds.lonMin + window.currentDisplayBounds.lonMax) / 2;
+    const latCenter = (window.currentDisplayBounds.latMin + window.currentDisplayBounds.latMax) / 2;
+    window.modelEntity.position = Cesium.Cartesian3.fromDegrees(lonCenter, latCenter, 0);
+  }
+};
+
+// 延迟加载模型，确保viewer已完全初始化
+// setTimeout(() => {
+//   loadModel();
+// }, 2000);
+
 // 创建经纬度输入面板
 const createLocationInputPanel = () => {
   const controlPanel = document.createElement('div');
@@ -1868,40 +1927,30 @@ const createLocationInputPanel = () => {
 
   controlPanel.innerHTML = `
     <h3>🗺️ 区域控制</h3>
-    <div style="margin-bottom: 10px;">
-      <label>经度范围:</label>
-      <div style="display: flex; gap: 5px; margin-top: 5px;">
-        <input type="number" id="lonMin" placeholder="最小经度" value="120.0" step="0.1" style="flex: 1; padding: 5px;">
-        <span>至</span>
-        <input type="number" id="lonMax" placeholder="最大经度" value="123.5" step="0.1" style="flex: 1; padding: 5px;">
-      </div>
-    </div>
-    <div style="margin-bottom: 10px;">
-      <label>纬度范围:</label>
-      <div style="display: flex; gap: 5px; margin-top: 5px;">
-        <input type="number" id="latMin" placeholder="最小纬度" value="30.0" step="0.1" style="flex: 1; padding: 5px;">
-        <span>至</span>
-        <input type="number" id="latMax" placeholder="最大纬度" value="32.5" step="0.1" style="flex: 1; padding: 5px;">
-      </div>
-    </div>
     <div style="margin-bottom: 15px;">
-      <button onclick="updateDisplayArea()" style="width: 100%; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">更新显示区域</button>
+      <button onclick="startBoxSelect()" style="width: 100%; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">开始框选范围</button>
     </div>
     <div style="margin-bottom: 10px;">
       <button onclick="resetToFullArea()" style="width: 100%; padding: 8px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">重置为全区域</button>
     </div>
+    <div id="boxSelectStatus" style="margin-bottom: 10px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 4px;">
+      <p style="margin: 0; font-size: 12px; color: #ccc;">当前状态: 未开始框选</p>
+      <p id="currentRange" style="margin: 5px 0 0 0; font-size: 12px; color: #ccc;">经度: 120.0° - 123.5° | 纬度: 30.0° - 32.5°</p>
+    </div>
     <div style="font-size: 12px; color: #ccc;">
-      <p>当前范围:</p>
-      <p id="currentRange">经度: 120.0° - 123.5° | 纬度: 30.0° - 32.5°</p>
+      <p>使用说明:</p>
+      <p>1. 点击"开始框选范围"按钮</p>
+      <p>2. 在地图上拖动鼠标框选区域</p>
+      <p>3. 释放鼠标后点击"剖切"按钮</p>
+      <p>4. 全局使用鼠标右键旋转视角</p>
     </div>
   `;
 
   document.body.appendChild(controlPanel);
 
   // 添加全局函数
-  window.updateDisplayArea = updateDisplayArea;
+  window.startBoxSelect = startBoxSelect;
   window.resetToFullArea = resetToFullArea;
-  window.fitToArea = fitToArea;
   window.clearAllPrimitives = clearAllPrimitives;
 
   // 添加清除粒子图元的函数
@@ -1993,32 +2042,7 @@ const createLocationInputPanel = () => {
 }
 
 // 更新显示区域
-const updateDisplayArea = () => {
-  const lonMin = parseFloat(document.getElementById('lonMin').value);
-  const lonMax = parseFloat(document.getElementById('lonMax').value);
-  const latMin = parseFloat(document.getElementById('latMin').value);
-  const latMax = parseFloat(document.getElementById('latMax').value);
-
-  if (isNaN(lonMin) || isNaN(lonMax) || isNaN(latMin) || isNaN(latMax)) {
-    alert('请输入有效的经纬度数值');
-    return;
-  }
-
-  if (lonMin >= lonMax || latMin >= latMax) {
-    alert('最小经纬度必须小于最大经纬度');
-    return;
-  }
-
-  window.currentDisplayBounds = {
-    lonMin: lonMin,
-    lonMax: lonMax,
-    latMin: latMin,
-    latMax: latMax
-  };
-  updateCurrentRangeDisplay();
-
-  recreateTerrainAndHeatmap();
-}
+// updateDisplayArea 函数已移除，改用框选功能
 
 // 重置为全区域
 const resetToFullArea = () => {
@@ -2029,14 +2053,361 @@ const resetToFullArea = () => {
     latMax: 32.5
   };
 
-  // 更新输入框
-  document.getElementById('lonMin').value = window.currentDisplayBounds.lonMin;
-  document.getElementById('lonMax').value = window.currentDisplayBounds.lonMax;
-  document.getElementById('latMin').value = window.currentDisplayBounds.latMin;
-  document.getElementById('latMax').value = window.currentDisplayBounds.latMax;
-
   updateCurrentRangeDisplay();
+
+  // 取消框选模式
+  if (window.boxSelectHandler) {
+    window.boxSelectHandler.destroy();
+    window.boxSelectHandler = null;
+  }
+
+  // 清除矩形实体
+  const entities = viewer.entities.values;
+  entities.forEach(entity => {
+    if (entity.rectangle) {
+      viewer.entities.remove(entity);
+    }
+  });
+
+  window.isBoxSelecting = false;
+  window.selectedBounds = null;
+  updateBoxSelectStatus('未开始框选', false);
+
   recreateTerrainAndHeatmap();
+}
+
+// 全局变量：存储框选状态
+window.isBoxSelecting = false;
+window.boxSelectHandler = null;
+window.selectedBounds = null;
+
+// 开始框选范围
+const startBoxSelect = () => {
+  if (window.isBoxSelecting) {
+    // 如果已经在框选模式，取消框选
+    if (window.boxSelectHandler) {
+      window.boxSelectHandler.destroy();
+      window.boxSelectHandler = null;
+    }
+    window.isBoxSelecting = false;
+    updateBoxSelectStatus('未开始框选', false);
+    return;
+  }
+
+  // 清理之前的状态
+  if (window.boxSelectHandler) {
+    window.boxSelectHandler.destroy();
+    window.boxSelectHandler = null;
+  }
+
+  // 清除之前的所有矩形实体（为新框选做准备）
+  const entities = viewer.entities.values;
+  const entitiesToRemove = [];
+  entities.forEach(entity => {
+    if (entity.rectangle) {
+      entitiesToRemove.push(entity);
+    }
+  });
+  entitiesToRemove.forEach(entity => {
+    viewer.entities.remove(entity);
+  });
+
+  // 开始框选模式
+  window.isBoxSelecting = true;
+  window.selectedBounds = null; // 清空之前的选择
+  updateBoxSelectStatus('请在地图上拖动鼠标框选区域...', true);
+
+  // 移除之前的确认按钮
+  const confirmButton = document.getElementById('confirmSliceButton');
+  if (confirmButton) {
+    confirmButton.remove();
+  }
+
+  // 计算合适的视角高度以查看整个高程效果
+  const currentLon = (window.currentDisplayBounds.lonMin + window.currentDisplayBounds.lonMax) / 2;
+  const currentLat = (window.currentDisplayBounds.latMin + window.currentDisplayBounds.latMax) / 2;
+
+  // 计算区域大小，根据大小调整高度
+  const lonRange = window.currentDisplayBounds.lonMax - window.currentDisplayBounds.lonMin;
+  const latRange = window.currentDisplayBounds.latMax - window.currentDisplayBounds.latMin;
+  const maxRange = Math.max(lonRange, latRange);
+
+  // 根据区域大小动态调整高度，确保能看到整个区域（降低视角高度）
+  const height = maxRange * 111320 * 2; // 每度约111公里，乘以2降低视角
+
+  // 使用 flyTo 添加平滑动画效果
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(currentLon, currentLat, height),
+    orientation: {
+      heading: Cesium.Math.toRadians(0),
+      pitch: Cesium.Math.toRadians(-90), // 垂直俯视
+      roll: 0
+    },
+    duration: 2.0 // 2秒动画时间
+  });
+
+  // 创建矩形选择处理器
+  window.boxSelectHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+  let startPosition = null;
+  let rectangle = null;
+  let currentRect = null;
+
+  // 鼠标按下事件
+  window.boxSelectHandler.setInputAction((click) => {
+    if (!window.isBoxSelecting) return;
+
+    // 清除之前的矩形
+    if (rectangle) {
+      viewer.entities.remove(rectangle);
+      rectangle = null;
+    }
+
+    // 记录起始位置并立即创建矩形（用于实时显示）
+    startPosition = click.position;
+
+    // 初始化当前矩形范围（使用有效的地理坐标）
+    currentRect = new Cesium.Rectangle(
+      Cesium.Math.toRadians(-180), // west
+      Cesium.Math.toRadians(-90),  // south
+      Cesium.Math.toRadians(180),  // east
+      Cesium.Math.toRadians(90)    // north
+    );
+
+    // 使用CallbackProperty实现实时更新
+    rectangle = viewer.entities.add({
+      rectangle: {
+        coordinates: new Cesium.CallbackProperty(() => {
+          return currentRect || new Cesium.Rectangle(
+            Cesium.Math.toRadians(-180),
+            Cesium.Math.toRadians(-90),
+            Cesium.Math.toRadians(180),
+            Cesium.Math.toRadians(90)
+          );
+        }, false),
+        material: Cesium.Color.YELLOW.withAlpha(0.3),
+        outline: true,
+        outlineColor: Cesium.Color.YELLOW,
+        height: 0
+      }
+    });
+
+  }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+  // 鼠标移动事件 - 实时更新矩形
+  window.boxSelectHandler.setInputAction((movement) => {
+    if (!window.isBoxSelecting || !startPosition || !rectangle) return;
+
+    const cartesianStart = viewer.camera.pickEllipsoid(startPosition, viewer.scene.globe.ellipsoid);
+    const cartesianEnd = viewer.camera.pickEllipsoid(movement.endPosition, viewer.scene.globe.ellipsoid);
+
+    if (cartesianStart && cartesianEnd) {
+      const startCartographic = Cesium.Cartographic.fromCartesian(cartesianStart);
+      const endCartographic = Cesium.Cartographic.fromCartesian(cartesianEnd);
+
+      const rect = new Cesium.Rectangle(
+        Math.min(startCartographic.longitude, endCartographic.longitude),
+        Math.min(startCartographic.latitude, endCartographic.latitude),
+        Math.max(startCartographic.longitude, endCartographic.longitude),
+        Math.max(startCartographic.latitude, endCartographic.latitude)
+      );
+
+      // 实时更新矩形坐标（更新currentRect变量）
+      currentRect = rect;
+    }
+
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+  // 鼠标抬起事件 - 完成框选
+  window.boxSelectHandler.setInputAction((click) => {
+    if (!window.isBoxSelecting || !startPosition) return;
+
+    // 只有在创建了矩形（即进行了拖动）的情况下才处理
+    if (!rectangle) {
+      // 只是点击，没有拖动，不进行处理
+      startPosition = null;
+      return;
+    }
+
+    const cartesianStart = viewer.camera.pickEllipsoid(startPosition, viewer.scene.globe.ellipsoid);
+    const cartesianEnd = viewer.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid);
+
+    if (cartesianStart && cartesianEnd) {
+      const startCartographic = Cesium.Cartographic.fromCartesian(cartesianStart);
+      const endCartographic = Cesium.Cartographic.fromCartesian(cartesianEnd);
+
+      // 计算经纬度范围
+      const lonMin = Math.min(startCartographic.longitude, endCartographic.longitude) * (180 / Math.PI);
+      const lonMax = Math.max(startCartographic.longitude, endCartographic.longitude) * (180 / Math.PI);
+      const latMin = Math.min(startCartographic.latitude, endCartographic.latitude) * (180 / Math.PI);
+      const latMax = Math.max(startCartographic.latitude, endCartographic.latitude) * (180 / Math.PI);
+
+      // 保存选择的范围（新的选择会覆盖之前的选择）
+      window.selectedBounds = {
+        lonMin: lonMin,
+        lonMax: lonMax,
+        latMin: latMin,
+        latMax: latMax
+      };
+
+      // 更新显示范围（不渲染，等待点击按钮）
+      updateBoxSelectStatus(`已选择: ${lonMin.toFixed(2)}°-${lonMax.toFixed(2)}°E, ${latMin.toFixed(2)}°-${latMax.toFixed(2)}°N`, true);
+
+      // 添加剖切按钮和清除按钮
+      addConfirmButton();
+      addClearButton();
+    }
+
+    // 清除之前的其他矩形，只保留当前选择的矩形
+    const allEntities = viewer.entities.values;
+    const currentRectangle = rectangle; // 保存当前矩形引用
+    allEntities.forEach(entity => {
+      // 如果是矩形但不是当前矩形，删除它
+      if (entity.rectangle && entity !== currentRectangle) {
+        viewer.entities.remove(entity);
+      }
+    });
+
+    // 重置状态
+    startPosition = null;
+    rectangle = null;
+
+  }, Cesium.ScreenSpaceEventType.LEFT_UP);
+}
+
+// 更新框选状态显示
+const updateBoxSelectStatus = (message, showConfirm = false) => {
+  const statusElement = document.getElementById('boxSelectStatus');
+  if (statusElement) {
+    statusElement.innerHTML = `<p style="margin: 0; font-size: 12px; color: ${showConfirm ? '#4CAF50' : '#ccc'};">当前状态: ${message}</p>`;
+  }
+}
+
+// 添加确认剖切按钮
+const addConfirmButton = () => {
+  // 移除之前的按钮（如果存在），确保只有一个
+  const oldButton = document.getElementById('confirmSliceButton');
+  if (oldButton) {
+    oldButton.remove();
+  }
+
+  // 获取控制面板
+  const controlPanel = document.querySelector('[style*="position: absolute"]');
+  if (!controlPanel) return;
+
+  // 检查是否已经存在按钮，避免重复添加
+  const existingButton = controlPanel.querySelector('#confirmSliceButton');
+  if (existingButton) return;
+
+  // 创建确认按钮
+  const button = document.createElement('button');
+  button.id = 'confirmSliceButton';
+  button.textContent = '剖切';
+  button.style.cssText = 'width: 100%; padding: 8px; background: #FF5722; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px;';
+  button.onclick = applySlice;
+
+  controlPanel.appendChild(button);
+}
+
+// 添加清除框选按钮
+const addClearButton = () => {
+  // 移除之前的按钮（如果存在）
+  const oldButton = document.getElementById('clearSelectionButton');
+  if (oldButton) {
+    oldButton.remove();
+  }
+
+  // 获取控制面板
+  const controlPanel = document.querySelector('[style*="position: absolute"]');
+  if (!controlPanel) return;
+
+  // 检查是否已经存在按钮，避免重复添加
+  const existingButton = controlPanel.querySelector('#clearSelectionButton');
+  if (existingButton) return;
+
+  // 创建清除按钮
+  const button = document.createElement('button');
+  button.id = 'clearSelectionButton';
+  button.textContent = '清除框选';
+  button.style.cssText = 'width: 100%; padding: 8px; background: #FF9800; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px;';
+  button.onclick = clearBoxSelection;
+
+  controlPanel.appendChild(button);
+}
+
+// 清除框选效果
+const clearBoxSelection = () => {
+  // 清除所有矩形
+  const allEntities = viewer.entities.values;
+  allEntities.forEach(entity => {
+    if (entity.rectangle) {
+      viewer.entities.remove(entity);
+    }
+  });
+
+  // 清除选择的范围
+  window.selectedBounds = null;
+
+  // 更新状态显示
+  updateBoxSelectStatus('已清除框选', false);
+
+  // 移除按钮
+  const clearButton = document.getElementById('clearSelectionButton');
+  if (clearButton) {
+    clearButton.remove();
+  }
+
+  const confirmButton = document.getElementById('confirmSliceButton');
+  if (confirmButton) {
+    confirmButton.remove();
+  }
+
+  // 不清除显示内容和范围，只清除框选状态
+}
+
+// 应用剖切效果
+const applySlice = () => {
+  if (!window.selectedBounds) {
+    alert('请先框选一个区域');
+    return;
+  }
+
+  // 更新显示范围
+  window.currentDisplayBounds = window.selectedBounds;
+  updateCurrentRangeDisplay();
+
+  // 执行渲染（视角已经在开始框选时设置好了，这里不需要再切换视角）
+  recreateTerrainAndHeatmap();
+
+  // 清理框选状态
+  if (window.boxSelectHandler) {
+    window.boxSelectHandler.destroy();
+    window.boxSelectHandler = null;
+  }
+
+  // 清除矩形实体
+  const entities = viewer.entities.values;
+  entities.forEach(entity => {
+    if (entity.rectangle) {
+      viewer.entities.remove(entity);
+    }
+  });
+
+  // 重置框选状态，但保持框选功能可用
+  window.isBoxSelecting = false;
+  window.selectedBounds = null; // 清空选择，以便下次框选
+  updateBoxSelectStatus('已应用剖切，可重新框选', false);
+
+  // 移除确认和清除按钮
+  const confirmButton = document.getElementById('confirmSliceButton');
+  if (confirmButton) {
+    confirmButton.remove();
+  }
+
+  const clearButton = document.getElementById('clearSelectionButton');
+  if (clearButton) {
+    clearButton.remove();
+  }
 }
 
 // 缩放到指定区域
@@ -2143,6 +2514,8 @@ const recreateTerrainAndHeatmap = async () => {
     }
   }
 
+  // 更新模型位置
+  updateModelPosition();
 }
 
 // 调试函数：调整水体透明度

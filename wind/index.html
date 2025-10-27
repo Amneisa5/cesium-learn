@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>wind</title>
+  <link href="/libs/Cesium-1.118/CesiumUnminified/Widgets/widgets.css" rel="stylesheet">
+  <script type="text/javascript" src="/libs/Cesium-1.118/CesiumUnminified/Cesium.js"></script>
+  <style>
+    body {
+      padding: 0;
+      margin: 0;
+    }
+
+    .buttons {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+    }
+
+    #windyCanvas {
+      position: fixed;
+      top: 9999px;
+      left: 0;
+      z-index: 9;
+    }
+
+    .wind-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(42, 42, 42, 0.9);
+      color: white;
+      padding: 15px;
+      border-radius: 5px;
+      font-family: Arial, sans-serif;
+      min-width: 250px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .wind-controls h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      padding-bottom: 5px;
+    }
+
+    .wind-controls label {
+      display: block;
+      margin: 10px 0;
+      font-size: 12px;
+    }
+
+    .wind-controls input[type="range"] {
+      width: 100%;
+      margin-top: 5px;
+    }
+
+    .wind-controls button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 10px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .wind-controls button:hover {
+      background: #45a049;
+    }
+
+    .wind-controls button.hidden {
+      background: #f44336;
+    }
+
+    .wind-controls .value-display {
+      float: right;
+      color: #4CAF50;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <canvas id="windyCanvas"></canvas>
+  <script type="module" src="index.js"></script>
+</body>
+
+</html>
