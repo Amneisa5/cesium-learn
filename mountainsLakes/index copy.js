@@ -835,17 +835,36 @@ vec3 Render(in vec3 ro, in vec3 rd) {
         // 检测是否为最上层水体 - 降低阈值让更多区域显示波浪
         bool isTopWaterLayer = waterBoxHeight > 0.05; // 降低到0.05，让更多区域显示波浪效果
         
-        // 1. 基础水体颜色 - 更真实的海洋色彩
-        vec3 deepWaterColor = vec3(0.02, 0.15, 0.35); // 深蓝色
-        vec3 shallowWaterColor = vec3(0.1, 0.4, 0.6);  // 浅蓝色
-        vec3 waterColor = mix(deepWaterColor, shallowWaterColor, smoothstep(0.0, 0.3, waterBoxHeight));
-        
-        // 2. 水体透明度 - 根据深度和动画进度调整
-        float depthFactor = 1.0 - smoothstep(0.0, 0.5, waterBoxHeight); // 深度因子
-        float waterTransparency = (0.25 + 0.15 * waterRiseProgress) * (0.3 + 0.7 * depthFactor);
-        
-        // 3. 水体颜色混合
-        tc = mix(tc, waterColor, waterTransparency);
+        // 1) 基础水体颜色（深/浅）
+        vec3 deepWaterColor = vec3(0.02, 0.16, 0.35);
+        vec3 shallowWaterColor = vec3(0.12, 0.45, 0.65);
+        float shallowMix = smoothstep(0.0, 0.35, waterBoxHeight);
+        vec3 waterBaseColor = mix(deepWaterColor, shallowWaterColor, shallowMix);
+
+        // 2) 深度吸收（Beer-Lambert）：让海底随深度更不明显
+        // 经验衰减系数：RGB 分量不同吸收，蓝色穿透更强
+        vec3 attenuation = vec3(3.2, 1.8, 1.1); // 进一步增强吸收，降低亮度
+        vec3 transmittance = exp(-attenuation * max(waterBoxHeight, 0.0));
+        // 定义 depthFactor 供后续反射强度等使用（值越大表示越浅）
+        float depthFactor = 1.0 - smoothstep(0.0, 0.5, waterBoxHeight);
+
+        // 3) 菲涅尔反射（弱化以突出海底）
+        float fresnel = pow(1.0 - max(0.0, dot(-rd, waterNormal)), 3.0);
+        fresnel = mix(0.02, 0.25, fresnel);
+
+        // 4) 浅水散射（提升浅水亮度）
+        float shallowScatter = smoothstep(0.0, 0.15, waterBoxHeight);
+        vec3 scatterColor = vec3(0.85, 0.95, 1.0) * shallowScatter * 0.05;
+
+        // 5) 将海底颜色透过水体吸收后，与水色与散射混合
+        vec3 seabedThroughWater = tc * transmittance;
+        vec3 waterShaded = seabedThroughWater + (1.0 - transmittance) * waterBaseColor + scatterColor;
+        // 在接近海平面的浅水区域整体压暗，避免过亮
+        float surfaceDim = mix(0.45, 1.0, smoothstep(0.12, 0.30, waterBoxHeight));
+        waterShaded *= surfaceDim;
+
+        // 6) 轻微反射天空（使用已有的后续反射叠加，先保留较低权重）
+        tc = mix(tc, waterShaded, 0.55);
         
         // 4. 水波效果 - 所有水体都有基础波浪，顶层水体有高级波浪
         float totalWave = 0.0;
@@ -879,18 +898,19 @@ vec3 Render(in vec3 ro, in vec3 rd) {
         waveDz += cos(wavePos.z * 2.0 + iTime * 1.7) * 2.0 * 0.06;
         
         // 基础波浪对颜色的影响（大幅增强可见性）
-        vec3 baseWaveColor = vec3(0.1, 0.4, 0.7) * totalWave;
-        vec3 baseWaveHighlight = vec3(0.3, 0.7, 1.0) * abs(totalWave) * 1.2;
-        vec3 baseWaveShadow = vec3(0.02, 0.15, 0.3) * abs(totalWave) * 0.5;
+        vec3 baseWaveColor = vec3(0.1, 0.35, 0.6) * totalWave * 0.5;
+        vec3 baseWaveHighlight = vec3(0.3, 0.6, 0.9) * abs(totalWave) * 0.35;
+        vec3 baseWaveShadow = vec3(0.02, 0.15, 0.3) * abs(totalWave) * 0.4;
         
         // 添加波浪的亮度变化
-        float waveBrightness = 1.0 + abs(totalWave) * 0.5;
+        float waveBrightness = 1.0 + abs(totalWave) * (0.08 + 0.15 * (1.0 - depthFactor));
+        waveBrightness = min(waveBrightness, 1.15);
         tc *= waveBrightness;
         
         // 添加简单的测试波浪效果 - 让波浪更加明显
         float testWave = sin((ro + rd * wt).x * 5.0 + iTime * 3.0) * 0.1;
         testWave += sin((ro + rd * wt).z * 4.0 + iTime * 2.5) * 0.08;
-        vec3 testWaveColor = vec3(0.2, 0.6, 1.0) * testWave;
+        vec3 testWaveColor = vec3(0.15, 0.45, 0.8) * testWave * 0.4;
         tc += testWaveColor;
         
         tc += baseWaveColor + baseWaveHighlight - baseWaveShadow;
@@ -931,12 +951,13 @@ vec3 Render(in vec3 ro, in vec3 rd) {
           waveDz += cos(topWavePos.z * 2.8 + iTime * 2.1) * 2.8 * 0.08;
           
           // 顶层波浪对颜色的额外影响（大幅增强）
-          vec3 topWaveColor = vec3(0.15, 0.5, 0.8) * topWave;
-          vec3 topWaveHighlight = vec3(0.4, 0.8, 1.0) * abs(topWave) * 1.5;
-          vec3 topWaveShadow = vec3(0.03, 0.2, 0.4) * abs(topWave) * 0.6;
+          vec3 topWaveColor = vec3(0.15, 0.5, 0.8) * topWave * 0.5;
+          vec3 topWaveHighlight = vec3(0.35, 0.75, 1.0) * abs(topWave) * 0.45;
+          vec3 topWaveShadow = vec3(0.03, 0.2, 0.4) * abs(topWave) * 0.5;
           
           // 添加顶层波浪的强烈亮度变化
-          float topWaveBrightness = 1.0 + abs(topWave) * 0.8;
+          float topWaveBrightness = 1.0 + abs(topWave) * 0.25;
+          topWaveBrightness = min(topWaveBrightness, 1.2);
           tc *= topWaveBrightness;
           
           tc += topWaveColor + topWaveHighlight - topWaveShadow;
@@ -1028,7 +1049,7 @@ vec3 Render(in vec3 ro, in vec3 rd) {
           // 8. 水体表面高光效果 - 模拟阳光在水面的反射
           vec3 lightDir = normalize(light - (ro + rd * wt));
           float specular = pow(max(0.0, dot(lightDir, waterNormal)), 64.0);
-          vec3 specularColor = vec3(1.0, 1.0, 0.9) * specular * 0.6;
+          vec3 specularColor = vec3(0.9, 0.95, 1.0) * specular * 0.25;
           tc += specularColor;
         }
         

@@ -605,9 +605,7 @@ vec2 getHeight(in vec3 p)
  vec2 uv = (p.xz + 0.5);
  // 确保UV坐标在有效范围内
  uv = clamp(uv, 0.0, 1.0);
- 
- // 由于在JavaScript中已经对原始数据进行了平滑处理，这里只进行轻微的双线性采样
- vec2 h = texture(iChannel0, uv).xy;
+ vec2 h = texture(iChannel0, uv).xy;  // 使用 iChannel0 (流体纹理)
  
  // h.x 是地形高度，h.y 是水位
  float terrainHeight = h.x;
@@ -677,26 +675,17 @@ vec2 getHeight(in vec3 p)
 
 vec3 getNormal(in vec3 p, int comp)
 {
- // 增大采样距离，使用更大的步长来平滑法线计算，减少尖锐感
- vec2 d = 3.5 / vec2(terrainWidth, terrainHeight); // 从2.0增加到3.5，让法线更平滑
+ // 使用更大的采样距离来平滑法线，减少尖锐感
+ vec2 d = 2.5 / vec2(terrainWidth, terrainHeight); // 从2.0增加到2.5，使法线更平滑
  float hMid = getHeight(p)[comp];
  float hRight = getHeight(p + vec3(d.x, 0, 0))[comp];
- float hLeft = getHeight(p - vec3(d.x, 0, 0))[comp];
  float hTop = getHeight(p + vec3(0, 0, d.y))[comp];
- float hBottom = getHeight(p - vec3(0, 0, d.y))[comp];
  
- // 使用Sobel算子计算更平滑的法线（使用4个方向的平均值）
- float dhx = (hRight - hLeft) / (2.0 * d.x);
- float dhz = (hTop - hBottom) / (2.0 * d.y);
- 
- // 计算法线向量
- vec3 n = normalize(vec3(-dhx, 1.0, -dhz));
- 
- // 进一步平滑法线：让法线的Y分量稍微向上偏，减少陡峭感
- n.y = mix(n.y, 1.0, 0.08); // 从0.05增加到0.08，让法线更平滑
- n = normalize(n);
- 
- return n;
+ // 使用平滑步函数来软化高度差，进一步减少尖锐感
+ vec3 n = cross(vec3(0, hTop - hMid, d.y), vec3(d.x, hRight - hMid, 0));
+ // 对法线的Y分量进行轻微平滑，避免过于陡峭
+ n.y = mix(n.y, 1.0, 0.05); // 轻微向上偏移，减少陡峭度
+ return normalize(n);
 }
 
 vec3 terrainColor(in vec3 p, in vec3 n, out float spec)
@@ -707,58 +696,23 @@ vec3 terrainColor(in vec3 p, in vec3 n, out float spec)
  vec2 h = getHeight(p);
  float nh = h.x; // 归一化高度 (0-1)
  
- // 检查是否为海底区域（使用相对高度）
- vec2 uv = (p.xz + 0.5);
- uv = clamp(uv, 0.0, 1.0);
- vec4 heightData = texture(iChannel0, uv);
- float relativeHeight = heightData.b; // 相对海平面的高度
- bool isUnderwater = relativeHeight < 0.5; // 0.5表示海平面
+ // 使用偏向地面的颜色（降低红色，提高黄色分量）
+ vec3 baseColor = vec3(0.42, 0.56, 0.48); // 地面颜色（降低红色，增加绿色以提高黄色分量）
+ vec3 ramp = baseColor;
  
- // 始终计算地形颜色，保持地形特征
- vec3 c1 = vec3(0.95, 0.90, 0.75); // 低海拔沙色（更亮）
- vec3 c2 = vec3(0.30, 0.65, 0.35); // 草地绿（更亮）
- vec3 c3 = vec3(0.55, 0.50, 0.45); // 岩石棕（更亮）
- vec3 c4 = vec3(1.0, 1.0, 1.0); // 积雪白（最亮）
- vec3 ramp = mix(c1, c2, smoothstep(0.05, 0.35, nh));
- ramp = mix(ramp, c3, smoothstep(0.35, 0.70, nh));
- ramp = mix(ramp, c4, smoothstep(0.75, 0.92, nh));
- 
- // 根据地形特征调整颜色
+ // 根据地形特征调整颜色（取消高亮效果）
  float cliff = smoothstep(0.8, 0.3, n.y);
  ramp = mix(ramp, vec3(0.25), cliff);
  spec = mix(spec, 0.3, cliff);
  
- // 积雪效果
- float snow = smoothstep(0.05, 0.25, p.y) * smoothstep(0.5, 0.7, n.y);
- ramp = mix(ramp, vec3(0.95, 0.95, 0.85), snow);
- spec = mix(spec, 0.4, snow);
+ // 取消积雪效果，避免高亮渐变
  
  // 添加纹理细节
  vec3 t = texture(iChannel1, p.xz * 5.0).xyz;
  ramp = mix(ramp, ramp * t, 0.2);
  
-  // 海底区域：更真实的水体效果
-  if (isUnderwater) {
-    // 根据水深调整水体颜色混合
-    float waterDepth = 0.5 - nh; // 水深因子（0.5是海平面）
-    waterDepth = clamp(waterDepth, 0.0, 1.0);
-    
-    // 深水和浅水的不同颜色
-    vec3 deepWaterTint = vec3(0.05, 0.2, 0.4);  // 深水偏绿蓝
-    vec3 shallowWaterTint = vec3(0.1, 0.5, 0.7); // 浅水偏蓝
-    vec3 waterTint = mix(deepWaterTint, shallowWaterTint, waterDepth);
-    
-    // 根据水深调整混合强度
-    float waterMixStrength = 0.2 + 0.4 * waterDepth;
-    ramp = mix(ramp, waterTint, waterMixStrength);
-    
-    // 水体反射特性
-    spec = mix(spec, 0.8, 0.4 * waterDepth);
-    
-    // 移除水体特有的颜色变化，避免地形闪烁
-    // vec3 waterVariation = vec3(0.02, 0.05, 0.1) * sin(nh * 20.0 + iTime * 2.0);
-    // ramp += waterVariation;
-  }
+  // 移除地形颜色函数中的水体混合，避免陆地变成蓝色
+  // 水体颜色效果只在渲染函数的水体部分应用
  
  return ramp;
 }
@@ -807,7 +761,7 @@ vec3 Render(in vec3 ro, in vec3 rd) {
    }
    {
      vec3 lightDir = normalize(light - (ro + rd * tt));
-     tc = tc * (max( 0.0, dot(lightDir, tn)) + 0.6);
+     tc = tc * (max( 0.0, dot(lightDir, tn)) + 0.8); // 增加环境光，让地形更亮
      spec *= pow(max(0., dot(lightDir, reflect(rd, tn))), 10.0);
      tc += spec;
    }
@@ -839,8 +793,11 @@ vec3 Render(in vec3 ro, in vec3 rd) {
     vec2 currentHeight = getHeight(ro + rd * wt);
     float terrainHeight = currentHeight.x;
     float waterBoxHeight = currentHeight.y - currentHeight.x; // 水位 = 总高度 - 地形高度
+    float seaLevel = 0.5; // 海平面在归一化坐标系中的位置
     
-    if (waterBoxHeight > 0.01) {
+    // 只有在海底区域（地形低于海平面）且有水体时才应用水体效果
+    // 这样可以确保陆地颜色不会受到水体效果的影响
+    if (terrainHeight < seaLevel && waterBoxHeight > 0.01) {
         // 在水箱内部，创建真实的水体效果，但侧壁保持实体
         vec3 wp = ro + rd * wt;
         bool nearSide = (abs(wp.x) > 0.49) || (abs(wp.z) > 0.49);
@@ -852,9 +809,9 @@ vec3 Render(in vec3 ro, in vec3 rd) {
         // 检测是否为最上层水体 - 降低阈值让更多区域显示波浪
         bool isTopWaterLayer = waterBoxHeight > 0.05; // 降低到0.05，让更多区域显示波浪效果
         
-        // 1) 基础水体颜色（深/浅）
+        // 1) 基础水体颜色（深/浅）- 调整浅水颜色更偏蓝色
         vec3 deepWaterColor = vec3(0.02, 0.16, 0.35);
-        vec3 shallowWaterColor = vec3(0.12, 0.45, 0.65);
+        vec3 shallowWaterColor = vec3(0.08, 0.35, 0.75); // 增加蓝色分量，减少绿色，让海平面更偏蓝色
         float shallowMix = smoothstep(0.0, 0.35, waterBoxHeight);
         vec3 waterBaseColor = mix(deepWaterColor, shallowWaterColor, shallowMix);
 
@@ -869,19 +826,25 @@ vec3 Render(in vec3 ro, in vec3 rd) {
         float fresnel = pow(1.0 - max(0.0, dot(-rd, waterNormal)), 3.0);
         fresnel = mix(0.02, 0.25, fresnel);
 
-        // 4) 浅水散射（提升浅水亮度）
+        // 4) 浅水散射（取消或大幅降低，避免高亮渐变）
         float shallowScatter = smoothstep(0.0, 0.15, waterBoxHeight);
-        vec3 scatterColor = vec3(0.85, 0.95, 1.0) * shallowScatter * 0.05;
+        vec3 scatterColor = vec3(0.85, 0.95, 1.0) * shallowScatter * 0.0; // 取消浅水散射
 
         // 5) 将海底颜色透过水体吸收后，与水色与散射混合
-        vec3 seabedThroughWater = tc * transmittance;
-        vec3 waterShaded = seabedThroughWater + (1.0 - transmittance) * waterBaseColor + scatterColor;
+        // 在浅水区域减少海底颜色的影响，让蓝色水体颜色更明显
+        float shallowFactor = smoothstep(0.0, 0.25, waterBoxHeight); // 浅水因子
+        vec3 seabedThroughWater = tc * transmittance * (1.0 - shallowFactor * 0.8); // 浅水区域大幅减少海底颜色透过
+        // 增加水体颜色的权重，特别是在浅水区域（使用平均透过率）
+        float avgTransmittance = (transmittance.r + transmittance.g + transmittance.b) / 3.0; // 计算平均透过率
+        float waterColorWeight = (1.0 - avgTransmittance) + shallowFactor * 0.6; // 浅水区域水体颜色权重更高
+        vec3 waterShaded = seabedThroughWater + waterColorWeight * waterBaseColor + scatterColor;
         // 在接近海平面的浅水区域整体压暗，避免过亮
         float surfaceDim = mix(0.45, 1.0, smoothstep(0.12, 0.30, waterBoxHeight));
         waterShaded *= surfaceDim;
 
-        // 6) 轻微反射天空（使用已有的后续反射叠加，先保留较低权重）
-        tc = mix(tc, waterShaded, 0.55);
+        // 6) 增加水体混合权重，让蓝色更明显，减少灰色影响
+        float waterMixWeight = 0.7 + shallowFactor * 0.25; // 提高混合权重，浅水区域最高0.95
+        tc = mix(tc, waterShaded, waterMixWeight);
         
         // 4. 水波效果 - 所有水体都有基础波浪，顶层水体有高级波浪
         float totalWave = 0.0;
@@ -914,22 +877,21 @@ vec3 Render(in vec3 ro, in vec3 rd) {
         waveDz += cos(wavePos.x * 2.5 + iTime * 2.0) * 2.5 * 0.08;
         waveDz += cos(wavePos.z * 2.0 + iTime * 1.7) * 2.0 * 0.06;
         
-        // 基础波浪对颜色的影响（大幅增强可见性）
-        vec3 baseWaveColor = vec3(0.1, 0.35, 0.6) * totalWave * 0.5;
-        vec3 baseWaveHighlight = vec3(0.3, 0.6, 0.9) * abs(totalWave) * 0.35;
-        vec3 baseWaveShadow = vec3(0.02, 0.15, 0.3) * abs(totalWave) * 0.4;
+        // 移除波浪的亮度变化，避免闪烁
+        // float waveBrightness = 1.0 + abs(totalWave) * (0.08 + 0.15 * (1.0 - depthFactor));
+        // waveBrightness = min(waveBrightness, 1.15);
+        // tc *= waveBrightness;
         
-        // 添加波浪的亮度变化
-        float waveBrightness = 1.0 + abs(totalWave) * (0.08 + 0.15 * (1.0 - depthFactor));
-        waveBrightness = min(waveBrightness, 1.15);
-        tc *= waveBrightness;
+        // 取消测试波浪效果，避免闪烁
+        // float testWave = sin((ro + rd * wt).x * 5.0 + iTime * 3.0) * 0.1;
+        // testWave += sin((ro + rd * wt).z * 4.0 + iTime * 2.5) * 0.08;
+        // vec3 testWaveColor = vec3(0.15, 0.45, 0.8) * testWave * 0.4;
+        // tc += testWaveColor;
         
-        // 添加简单的测试波浪效果 - 让波浪更加明显
-        float testWave = sin((ro + rd * wt).x * 5.0 + iTime * 3.0) * 0.1;
-        testWave += sin((ro + rd * wt).z * 4.0 + iTime * 2.5) * 0.08;
-        vec3 testWaveColor = vec3(0.15, 0.45, 0.8) * testWave * 0.4;
-        tc += testWaveColor;
-        
+        // 增强波浪高亮的强度，让波浪更明显（但避免过度闪烁）
+        vec3 baseWaveColor = vec3(0.1, 0.35, 0.6) * totalWave * 0.6; // 增加强度
+        vec3 baseWaveHighlight = vec3(0.3, 0.6, 0.9) * abs(totalWave) * 0.4; // 增加高亮强度
+        vec3 baseWaveShadow = vec3(0.02, 0.15, 0.3) * abs(totalWave) * 0.3;
         tc += baseWaveColor + baseWaveHighlight - baseWaveShadow;
         
         if (isTopWaterLayer) {
@@ -967,16 +929,15 @@ vec3 Render(in vec3 ro, in vec3 rd) {
           waveDz += cos(topWavePos.x * 3.2 + iTime * 2.5) * 3.2 * 0.10;
           waveDz += cos(topWavePos.z * 2.8 + iTime * 2.1) * 2.8 * 0.08;
           
-          // 顶层波浪对颜色的额外影响（大幅增强）
-          vec3 topWaveColor = vec3(0.15, 0.5, 0.8) * topWave * 0.5;
-          vec3 topWaveHighlight = vec3(0.35, 0.75, 1.0) * abs(topWave) * 0.45;
-          vec3 topWaveShadow = vec3(0.03, 0.2, 0.4) * abs(topWave) * 0.5;
+          // 移除顶层波浪的亮度变化，避免闪烁
+          // float topWaveBrightness = 1.0 + abs(topWave) * 0.25;
+          // topWaveBrightness = min(topWaveBrightness, 1.2);
+          // tc *= topWaveBrightness;
           
-          // 添加顶层波浪的强烈亮度变化
-          float topWaveBrightness = 1.0 + abs(topWave) * 0.25;
-          topWaveBrightness = min(topWaveBrightness, 1.2);
-          tc *= topWaveBrightness;
-          
+          // 增强顶层波浪高亮的强度，让波浪更明显（但避免过度闪烁）
+          vec3 topWaveColor = vec3(0.15, 0.5, 0.8) * topWave * 0.6; // 增加强度
+          vec3 topWaveHighlight = vec3(0.35, 0.75, 1.0) * abs(topWave) * 0.5; // 增加高亮强度
+          vec3 topWaveShadow = vec3(0.03, 0.2, 0.4) * abs(topWave) * 0.3;
           tc += topWaveColor + topWaveHighlight - topWaveShadow;
         }
         
@@ -986,9 +947,9 @@ vec3 Render(in vec3 ro, in vec3 rd) {
         if (isTopWaterLayer) {
           // 只有最上层水体才有高级反射效果
           
-          // 添加波浪对法线的影响
+          // 增强波浪对法线的影响，让波浪反射更明显
           vec3 waveNormal = normalize(vec3(-waveDx, 1.0, -waveDz));
-          waterNormal = normalize(mix(waterNormal, waveNormal, 0.3));
+          waterNormal = normalize(mix(waterNormal, waveNormal, 0.6)); // 从0.3增加到0.6
           
           // 计算反射方向
           vec3 reflectDir = reflect(rd, waterNormal);
@@ -1007,37 +968,35 @@ vec3 Render(in vec3 ro, in vec3 rd) {
           float skyMix2 = smoothstep(0.3, 0.7, reflectDir.y);
           vec3 skyReflection = mix(skyColor3, mix(skyColor1, skyColor2, skyMix2), skyMix1);
           
-          // 添加云层反射效果
-          float cloudNoise = sin(reflectDir.x * 3.0 + iTime * 0.5) * 0.3 + 0.7;
-          cloudNoise *= sin(reflectDir.z * 2.5 + iTime * 0.3) * 0.4 + 0.6;
-          skyReflection *= cloudNoise;
+          // 取消云层反射效果，避免闪烁
+          // float cloudNoise = sin(reflectDir.x * 3.0 + iTime * 0.5) * 0.3 + 0.7;
+          // cloudNoise *= sin(reflectDir.z * 2.5 + iTime * 0.3) * 0.4 + 0.6;
+          // skyReflection *= cloudNoise;
           
-          // 反射强度随水深和动画进度调整
-          float reflectionStrength = fresnel * (0.4 + 0.6 * waterRiseProgress) * (0.5 + 0.5 * depthFactor);
+          // 反射强度随水深和动画进度调整（降低浅水区域的反射强度，避免高亮渐变）
+          float reflectionStrength = fresnel * (0.4 + 0.6 * waterRiseProgress) * (0.3 + 0.3 * depthFactor); // 降低depthFactor的权重
           tc = mix(tc, skyReflection, reflectionStrength);
         } else {
-          // 非最上层水体使用简单反射
-          vec3 reflectDir = reflect(rd, waterNormal);
-          float fresnel = pow(1.0 - max(0.0, dot(-rd, waterNormal)), 2.0);
+          // 非最上层水体也使用波浪法线，增强波浪效果
+          vec3 waveNormal = normalize(vec3(-waveDx, 1.0, -waveDz));
+          vec3 waveAffectedNormal = normalize(mix(waterNormal, waveNormal, 0.4)); // 添加波浪对法线的影响
+          vec3 reflectDir = reflect(rd, waveAffectedNormal);
+          float fresnel = pow(1.0 - max(0.0, dot(-rd, waveAffectedNormal)), 2.0);
           vec3 skyReflection = vec3(0.4, 0.6, 1.0);
           float reflectionStrength = fresnel * 0.3 * waterRiseProgress;
           tc = mix(tc, skyReflection, reflectionStrength);
         }
         
-        // 6. 高质量水体内部光线散射效果
-        float scatterFactor = 1.0 - smoothstep(0.0, 0.6, dist);
-        
-        // 多层散射 - 模拟真实水体中的光线散射
-        vec3 scatterColor1 = vec3(0.05, 0.2, 0.4) * scatterFactor * 0.6; // 主散射
-        vec3 scatterColor2 = vec3(0.1, 0.3, 0.5) * scatterFactor * scatterFactor * 0.4; // 二次散射
-        vec3 scatterColor3 = vec3(0.15, 0.4, 0.6) * pow(scatterFactor, 3.0) * 0.3; // 三次散射
-        
-        // 添加动态散射效果
-        float scatterNoise = sin((ro + rd * wt).x * 8.0 + iTime * 1.5) * 0.1 + 0.9;
-        scatterNoise *= sin((ro + rd * wt).z * 6.0 + iTime * 1.2) * 0.1 + 0.9;
-        
-        vec3 totalScatter = (scatterColor1 + scatterColor2 + scatterColor3) * scatterNoise;
-        tc += totalScatter;
+        // 6. 高质量水体内部光线散射效果（取消或大幅降低，避免高亮渐变）
+        // 暂时取消水体内部散射效果，避免产生高亮渐变
+        // float scatterFactor = 1.0 - smoothstep(0.0, 0.6, dist);
+        // vec3 scatterColor1 = vec3(0.05, 0.2, 0.4) * scatterFactor * 0.6;
+        // vec3 scatterColor2 = vec3(0.1, 0.3, 0.5) * scatterFactor * scatterFactor * 0.4;
+        // vec3 scatterColor3 = vec3(0.15, 0.4, 0.6) * pow(scatterFactor, 3.0) * 0.3;
+        // float scatterNoise = sin((ro + rd * wt).x * 8.0 + iTime * 1.5) * 0.1 + 0.9;
+        // scatterNoise *= sin((ro + rd * wt).z * 6.0 + iTime * 1.2) * 0.1 + 0.9;
+        // vec3 totalScatter = (scatterColor1 + scatterColor2 + scatterColor3) * scatterNoise;
+        // tc += totalScatter;
         
         // 7. 高质量水体边缘泡沫效果 - 仅应用于最上层水体
         if (isTopWaterLayer) {
@@ -1646,66 +1605,6 @@ class FluidDemo {
     console.log('原始TIF数据已输出为图片，文件名：raw_tif_data.png');
   }
 };
-
-// 平滑高程数据函数 - 使用高斯模糊来降低尖锐感
-function smoothHeightData (data, width, height, radius = 2) {
-  // 创建输出数组
-  const smoothed = new Array(data.length);
-
-  // 高斯核权重（简化版，使用5x5高斯核）
-  const kernelSize = radius * 2 + 1;
-  const kernel = [];
-  const sigma = radius / 2.0;
-  let sum = 0;
-
-  // 生成高斯核
-  for (let dy = -radius; dy <= radius; dy++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const weight = Math.exp(-(distance * distance) / (2 * sigma * sigma));
-      kernel.push(weight);
-      sum += weight;
-    }
-  }
-
-  // 归一化核
-  for (let i = 0; i < kernel.length; i++) {
-    kernel[i] /= sum;
-  }
-
-  // 对每个像素应用高斯模糊
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const index = y * width + x;
-      let smoothedValue = 0;
-      let kernelIndex = 0;
-
-      // 对周围像素加权平均
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-
-          // 边界处理：镜像边界
-          const clampedX = Math.max(0, Math.min(width - 1, nx));
-          const clampedY = Math.max(0, Math.min(height - 1, ny));
-          const neighborIndex = clampedY * width + clampedX;
-
-          const value = data[neighborIndex];
-          if (value !== undefined && value !== null && !isNaN(value)) {
-            smoothedValue += value * kernel[kernelIndex];
-          }
-          kernelIndex++;
-        }
-      }
-
-      smoothed[index] = smoothedValue;
-    }
-  }
-
-  return smoothed;
-}
-
 // viewer.camera.lookAt(boxCenter, new Cesium.Cartesian3(0.0, -10000.0, 5000.0));
 const readGeoTif = async (lonLatBounds = null) => {
   const terrain = "gebco_2023_n32.5_s30.0_w120.0_e123.5.tif";
@@ -1772,13 +1671,6 @@ const readGeoTif = async (lonLatBounds = null) => {
     console.error("TIF数据读取失败");
     throw new Error("TIF数据读取失败");
   }
-
-  // 对原始高程数据进行平滑处理，降低尖锐感
-  console.log('应用平滑滤波来降低地形尖锐感...');
-  // 应用两次平滑，第一次用较大半径，第二次用较小半径，效果更自然
-  croppedData = smoothHeightData(croppedData, croppedWidth, croppedHeight, 3); // 第一遍：平滑半径3像素
-  croppedData = smoothHeightData(croppedData, croppedWidth, croppedHeight, 2); // 第二遍：平滑半径2像素
-  console.log('平滑处理完成');
 
   // 使用裁剪后的数据
   textureData = new Float32Array(croppedWidth * croppedHeight * 4);
@@ -1894,19 +1786,19 @@ const readGeoTif = async (lonLatBounds = null) => {
       } else {
         // 数据跨越海平面
         // 海平面(0米)映射到0.5，最高点映射到1.0，最低点映射到0.0
-        // 使用平滑的非线性映射来改善高值数据稀疏问题，同时避免山体过于尖锐
+        // 使用平滑的非线性映射改善高值数据稀疏的问题，同时避免山体过于尖锐
         let linearNormalized = (rawHeight - seaLevel) / (2 * maxRange) + 0.5;
 
         // 如果高度在海平面以上，使用更平滑的压缩函数（power函数，指数接近1）
-        // 使用更大的指数（接近1）来减少尖锐感，让山体更平滑
+        // 使用0.85的幂指数，比平方根更平缓，避免过于尖锐
         if (rawHeight > seaLevel) {
           let aboveSeaLevel = linearNormalized - 0.5; // 0到0.5的范围
-          // 使用更平滑的曲线：0.92次幂，比0.85更平缓，减少尖锐感
-          normalizedHeight = 0.5 + Math.pow(aboveSeaLevel * 2.0, 0.92) * 0.5; // 压缩到0.5-1.0
+          // 使用更平滑的曲线：0.85次幂，比平方根（0.5次幂）更平缓
+          normalizedHeight = 0.5 + Math.pow(aboveSeaLevel * 2.0, 0.85) * 0.5; // 压缩到0.5-1.0
         } else {
           // 海平面以下：使用接近1的指数，保持平滑
           let belowSeaLevel = linearNormalized / 0.5; // 0到1的范围
-          normalizedHeight = Math.pow(belowSeaLevel, 0.98) * 0.5; // 使用0.98次幂，非常平滑
+          normalizedHeight = Math.pow(belowSeaLevel, 0.95) * 0.5; // 使用0.95次幂，更平滑
         }
 
         relativeHeight = (rawHeight - seaLevel) / (2 * maxRange) + 0.5; // relativeHeight保持线性

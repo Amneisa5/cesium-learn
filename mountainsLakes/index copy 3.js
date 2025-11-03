@@ -606,8 +606,22 @@ vec2 getHeight(in vec3 p)
  // 确保UV坐标在有效范围内
  uv = clamp(uv, 0.0, 1.0);
  
- // 由于在JavaScript中已经对原始数据进行了平滑处理，这里只进行轻微的双线性采样
+ // 使用多采样平滑来减少尖锐感（可选：轻微平滑）
+ // 计算采样偏移（基于纹理尺寸）
+ vec2 texelSize = 1.0 / vec2(terrainWidth, terrainHeight);
+ 
+ // 主采样
  vec2 h = texture(iChannel0, uv).xy;
+ 
+ // 对高度进行轻微平滑（4点平均）
+ vec2 h1 = texture(iChannel0, uv + vec2(texelSize.x, 0.0)).xy;
+ vec2 h2 = texture(iChannel0, uv + vec2(0.0, texelSize.y)).xy;
+ vec2 h3 = texture(iChannel0, uv + vec2(-texelSize.x, 0.0)).xy;
+ vec2 h4 = texture(iChannel0, uv + vec2(0.0, -texelSize.y)).xy;
+ 
+ // 对高度进行轻微平均（保留原值70%，周围值30%）
+ h.x = h.x * 0.7 + (h1.x + h2.x + h3.x + h4.x) * 0.075; // 0.075 * 4 = 0.3
+ h.y = h.y; // 保持水位不变
  
  // h.x 是地形高度，h.y 是水位
  float terrainHeight = h.x;
@@ -1646,66 +1660,6 @@ class FluidDemo {
     console.log('原始TIF数据已输出为图片，文件名：raw_tif_data.png');
   }
 };
-
-// 平滑高程数据函数 - 使用高斯模糊来降低尖锐感
-function smoothHeightData (data, width, height, radius = 2) {
-  // 创建输出数组
-  const smoothed = new Array(data.length);
-
-  // 高斯核权重（简化版，使用5x5高斯核）
-  const kernelSize = radius * 2 + 1;
-  const kernel = [];
-  const sigma = radius / 2.0;
-  let sum = 0;
-
-  // 生成高斯核
-  for (let dy = -radius; dy <= radius; dy++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const weight = Math.exp(-(distance * distance) / (2 * sigma * sigma));
-      kernel.push(weight);
-      sum += weight;
-    }
-  }
-
-  // 归一化核
-  for (let i = 0; i < kernel.length; i++) {
-    kernel[i] /= sum;
-  }
-
-  // 对每个像素应用高斯模糊
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const index = y * width + x;
-      let smoothedValue = 0;
-      let kernelIndex = 0;
-
-      // 对周围像素加权平均
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-
-          // 边界处理：镜像边界
-          const clampedX = Math.max(0, Math.min(width - 1, nx));
-          const clampedY = Math.max(0, Math.min(height - 1, ny));
-          const neighborIndex = clampedY * width + clampedX;
-
-          const value = data[neighborIndex];
-          if (value !== undefined && value !== null && !isNaN(value)) {
-            smoothedValue += value * kernel[kernelIndex];
-          }
-          kernelIndex++;
-        }
-      }
-
-      smoothed[index] = smoothedValue;
-    }
-  }
-
-  return smoothed;
-}
-
 // viewer.camera.lookAt(boxCenter, new Cesium.Cartesian3(0.0, -10000.0, 5000.0));
 const readGeoTif = async (lonLatBounds = null) => {
   const terrain = "gebco_2023_n32.5_s30.0_w120.0_e123.5.tif";
@@ -1772,13 +1726,6 @@ const readGeoTif = async (lonLatBounds = null) => {
     console.error("TIF数据读取失败");
     throw new Error("TIF数据读取失败");
   }
-
-  // 对原始高程数据进行平滑处理，降低尖锐感
-  console.log('应用平滑滤波来降低地形尖锐感...');
-  // 应用两次平滑，第一次用较大半径，第二次用较小半径，效果更自然
-  croppedData = smoothHeightData(croppedData, croppedWidth, croppedHeight, 3); // 第一遍：平滑半径3像素
-  croppedData = smoothHeightData(croppedData, croppedWidth, croppedHeight, 2); // 第二遍：平滑半径2像素
-  console.log('平滑处理完成');
 
   // 使用裁剪后的数据
   textureData = new Float32Array(croppedWidth * croppedHeight * 4);
